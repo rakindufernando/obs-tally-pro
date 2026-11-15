@@ -248,6 +248,7 @@ namespace BumbiTally
                 tray.DoubleClick+=(s,e)=>{Show();WindowState=FormWindowState.Normal;Activate();};
             }catch(Exception e){Log("Tray unavailable: "+e.Message);}
             Log("BUMBI OBS TALLY PRO 2.0 ready. Closing the window stops the Bridge completely.");
+            Log("Use STOP ALL & EXIT to stop the bridge and close the application safely.");
             if(!File.Exists(Program.Runner)||!File.Exists(Program.Script)){
                 MessageBox.Show("Bridge runtime missing. Please reinstall OBS TALLY PRO.","Repair required",MessageBoxButtons.OK,MessageBoxIcon.Error);return;
             }
