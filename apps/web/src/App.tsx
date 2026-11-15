@@ -100,7 +100,7 @@ function CameraEditor({camera,production,usedNumbers,onClose,onSaved,onRefresh}:
    if(!rules.length)throw new Error('Select at least one OBS scene or source before saving.');
    const values={name:name.trim(),number,cameraman:operator.trim(),enabled,production_id:production.id};
    let cid=camera?.id;
-   if(!cid){const created=unwrap(await supabase.from('cameras').insert(values).select('id').single());cid=created.id;createdId=cid;}
+   if(!cid){const created=unwrap(await supabase.from('cameras').insert(values).select('id').single());cid=created?.id||'';createdId=cid;}
    // Insert the new rules first. A failed insertion will not wipe existing mappings.
    const inserted=await supabase.from('camera_mappings').insert(rules.map(r=>({
     camera_id:cid,kind:r.kind,obs_name:r.obs_name,obs_uuid:r.obs_uuid||null,excluded:r.excluded
