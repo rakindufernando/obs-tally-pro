@@ -1,0 +1,49 @@
+name: Deploy OBS TALLY PRO to GitHub Pages
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # No committed lockfile is supplied in the offline package. On your machine
+      # run npm install and commit package-lock.json, then switch to npm ci.
+      - run: npm install --no-audit --no-fund
+      - run: npm test
+      - run: npm run typecheck
+  deploy:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npm run build -w @tally/shared
+      - run: npm run build -w @tally/web
+        env:
+          GITHUB_PAGES_BASE: /obs-tally-pro/
+          VITE_SUPABASE_URL: https://lvzrhzlcyajhhgfqgdar.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_z86HVW8QTQFkkj9hI8jRLQ_b9jaK6_4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: ./apps/web/dist
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,20 @@
+name: Build Windows OBS Bridge
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npm run build -w @tally/shared
+      - run: npm run package:win -w @tally/obs-bridge
+      - uses: actions/upload-artifact@v4
+        with:
+          name: obs-tally-pro-windows-bridge
+          path: dist/obs-tally-bridge.exe
