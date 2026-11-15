@@ -43,8 +43,8 @@ jobs:
         run: |
           $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework\v4.0.30319\csc.exe'
           if (!(Test-Path $csc)) { throw 'Windows .NET Framework compiler not found' }
-          $args = @('/nologo','/target:winexe','/platform:anycpu','/optimize+', '/reference:System.dll', '/reference:System.Core.dll', '/reference:System.Windows.Forms.dll', '/reference:System.Drawing.dll', '/reference:System.Security.dll', '/reference:System.Web.Extensions.dll', '/out:dist/windows-installer/BUMBI-OBS-TALLY-PRO.exe', '/win32icon:windows-app/bumbi.ico', 'windows-app/Program.cs')
-          & $csc @args
+          $compilerArgs = @('/nologo','/target:winexe','/platform:anycpu','/optimize+', '/reference:System.dll', '/reference:System.Core.dll', '/reference:System.Windows.Forms.dll', '/reference:System.Drawing.dll', '/reference:System.Security.dll', '/reference:System.Web.Extensions.dll', '/out:dist/windows-installer/BUMBI-OBS-TALLY-PRO.exe', '/win32icon:windows-app/bumbi.ico', 'windows-app/Program.cs')
+          & $csc @compilerArgs
           if ($LASTEXITCODE -ne 0) { throw "Desktop compiler failed with exit code $LASTEXITCODE" }
           if (!(Test-Path 'dist/windows-installer/BUMBI-OBS-TALLY-PRO.exe')) { throw 'Control panel EXE missing' }
       - name: Test desktop runtime, encryption, GUI construction, and Bridge bundle
