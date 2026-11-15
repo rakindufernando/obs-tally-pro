@@ -220,6 +220,8 @@ namespace BumbiTally
             var tests=B("TEST OBS PORT",PANEL2,Color.White,43);tests.SetBounds(24,64,208,43);tests.Click+=(s,e)=>CheckPort();logPane.Controls.Add(tests);
             var web=B("OPEN DIRECTOR",PANEL2,Color.White,43);web.SetBounds(244,64,207,43);web.Click+=(s,e)=>Open("#/dashboard");logPane.Controls.Add(web);
             var clear=B("CLEAR LOG",PANEL2,Color.White,43);clear.SetBounds(463,64,166,43);clear.Click+=(s,e)=>{log.Clear();logLines=0;};logPane.Controls.Add(clear);
+            autostartButton=B(Program.AutoStartEnabled()?"START WITH WINDOWS   ON":"START WITH WINDOWS   OFF",PANEL2,Color.White,43);autostartButton.SetBounds(644,64,292,43);
+            autostartButton.Click+=(s,e)=>{try{bool state=!Program.AutoStartEnabled();Program.SetAutoStart(state);autostartButton.Text=state?"START WITH WINDOWS   ON":"START WITH WINDOWS   OFF";Log(state?"Automatic startup enabled for this Windows user.":"Automatic startup disabled.");}catch(Exception ex){MessageBox.Show(ex.Message,"Startup setting failed");}};logPane.Controls.Add(autostartButton);
             var panel=Card(24,127,936,427,logPane);
             log=new RichTextBox();log.SetBounds(12,12,912,400);log.BackColor=Color.FromArgb(8,11,17);log.ForeColor=Color.FromArgb(204,220,233);log.Font=new Font("Consolas",9.5f);log.ReadOnly=true;log.BorderStyle=BorderStyle.None;log.ScrollBars=RichTextBoxScrollBars.Vertical;panel.Controls.Add(log);
             logPane.Controls.Add(L("Never share your OBS password or Bridge registration token in a screenshot.",24,565,920,32,10,false,YELLOW));
@@ -248,7 +250,6 @@ namespace BumbiTally
                 tray.DoubleClick+=(s,e)=>{Show();WindowState=FormWindowState.Normal;Activate();};
             }catch(Exception e){Log("Tray unavailable: "+e.Message);}
             Log("BUMBI OBS TALLY PRO 2.0 ready. Closing the window stops the Bridge completely.");
-            Log("Use STOP ALL & EXIT to stop the bridge and close the application safely.");
             if(!File.Exists(Program.Runner)||!File.Exists(Program.Script)){
                 MessageBox.Show("Bridge runtime missing. Please reinstall OBS TALLY PRO.","Repair required",MessageBoxButtons.OK,MessageBoxIcon.Error);return;
             }
