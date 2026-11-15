@@ -5,3 +5,19 @@
 @media(max-width:770px){.sidebar{position:fixed;left:-275px;transition:left .2s;width:250px}.sidebar.open{left:0;box-shadow:0 0 50px #000a}.workspace{padding:0 16px}.mobile-nav{display:inline-grid}.topbar{align-items:flex-start;flex-wrap:wrap;padding:18px 0}.topbar h1{font-size:23px}.top-controls{width:100%;justify-content:space-between}.hero-panel{flex-direction:column;align-items:stretch}.hero-feed{grid-template-columns:1fr 1fr;min-width:0}.hero-panel h2{font-size:26px}.metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.metric{padding:14px;min-height:105px}.metric strong{font-size:32px}.metric svg{right:12px;top:60px}.section-heading{align-items:flex-start;flex-wrap:wrap}.mapping-card{grid-template-columns:1fr}.diagnostics-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.app-footer{flex-wrap:wrap}}
 @media(max-width:460px){.head-health{font-size:8px;padding:10px 7px}.top-controls select{max-width:185px}.hero-feed{grid-template-columns:1fr}.camera-grid{grid-template-columns:1fr}.two-cols{grid-template-columns:1fr}.auth-card{padding:26px}.diagnostics-grid{grid-template-columns:1fr}.pair-buttons{flex-wrap:wrap}.modal{padding:20px}.dock-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.tally-top,.tally-bottom{padding:17px}.tally-headline{font-size:clamp(40px,13vw,65px)}.tally-state-label{letter-spacing:.16em}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{transition-duration:0s!important;animation-duration:0s!important}}
+
+/* BUMBI Software Solutions | official supplied black and white identity */
+.bumbi-header-logo {width:101px;height:49px;object-fit:contain;background:#fff;padding:4px;border-radius:9px;flex:none}
+.sidebar .bumbi-header-logo {width:61px;height:43px;padding:3px;border-radius:7px}
+.auth-card .bumbi-header-logo {width:125px;height:55px;padding:5px;border-radius:9px}
+.bumbi-credit {display:inline-flex;align-items:center;gap:10px;color:#92a5b9;font-size:11px;letter-spacing:.01em}
+.bumbi-credit strong{color:#f7f9fc;font-weight:800}
+.bumbi-credit img {display:block;object-fit:contain;max-width:103px;height:35px;border-radius:5px;background:#fff;padding:3px}
+.app-footer .bumbi-credit{margin-left:auto}
+.bumbi-tally-logo {width:65px;height:34px;padding:3px;object-fit:contain;background:white;border-radius:5px}
+.bumbi-dock-logo {width:72px;height:32px;padding:3px;background:#fff;object-fit:contain;border-radius:5px}
+.bumbi-loading-logo{width:110px;height:54px;object-fit:contain;background:#fff;border-radius:8px;padding:5px}
+.tally-brand-credit {position:absolute;bottom:62px;left:50%;transform:translateX(-50%);white-space:nowrap;z-index:3;display:flex;align-items:center;gap:8px;font-size:10px;font-weight:700;color:#fff;opacity:.83}
+.tally-brand-credit img{width:58px;height:27px;object-fit:contain;background:#fff;border-radius:4px;padding:2px}
+.dock-credit{padding:20px 8px 8px;text-align:right}
+@media(max-width:700px){.app-footer{flex-wrap:wrap;gap:8px}.app-footer .bumbi-credit{margin:0}.brand-large{flex-wrap:wrap}.bumbi-credit{font-size:9px}.tally-brand-credit{font-size:8px;bottom:55px}.tally-brand-credit img{width:50px;height:23px}}

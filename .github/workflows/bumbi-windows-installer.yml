@@ -1,0 +1,88 @@
+name: Build BUMBI OBS TALLY PRO Windows Installer
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'windows-app/**'
+      - 'installer/**'
+      - 'apps/obs-bridge/**'
+      - 'packages/shared/**'
+      - '.github/workflows/bumbi-windows-installer.yml'
+permissions:
+  contents: read
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Run OBS tally mapping and TypeScript tests
+        run: |
+          npm test
+          npm run typecheck
+      - name: Bundle independent Windows OBS Bridge
+        run: npm run package:portable -w @tally/obs-bridge
+      - name: Assemble installed runtime
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist/windows-installer | Out-Null
+          Copy-Item (Get-Command node).Source dist/windows-installer/OBS-TALLY-PRO-Bridge.exe
+          Copy-Item ./apps/obs-bridge/dist/bridge.cjs dist/windows-installer/bridge.cjs
+          Copy-Item ./windows-app/bumbi-logo.png dist/windows-installer/bumbi-logo.png
+          Copy-Item ./windows-app/bumbi.ico dist/windows-installer/bumbi.ico
+          Copy-Item ./installer/README-SETUP.txt dist/windows-installer/README-SETUP.txt
+      - name: Compile native BUMBI desktop control panel
+        shell: pwsh
+        run: |
+          $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework\v4.0.30319\csc.exe'
+          if (!(Test-Path $csc)) { throw 'Windows .NET Framework compiler not found' }
+          $args = @('/nologo','/target:winexe','/platform:anycpu','/optimize+', '/reference:System.dll', '/reference:System.Core.dll', '/reference:System.Windows.Forms.dll', '/reference:System.Drawing.dll', '/reference:System.Security.dll', '/reference:System.Web.Extensions.dll', '/out:dist/windows-installer/BUMBI-OBS-TALLY-PRO.exe', '/win32icon:windows-app/bumbi.ico', 'windows-app/Program.cs')
+          & $csc @args
+          if ($LASTEXITCODE -ne 0) { throw "Desktop compiler failed with exit code $LASTEXITCODE" }
+          if (!(Test-Path 'dist/windows-installer/BUMBI-OBS-TALLY-PRO.exe')) { throw 'Control panel EXE missing' }
+      - name: Test desktop runtime, encryption, GUI construction, and Bridge bundle
+        shell: pwsh
+        run: |
+          $app = (Resolve-Path './dist/windows-installer/BUMBI-OBS-TALLY-PRO.exe').Path
+          foreach ($test in @('--self-test','--ui-self-test')) {
+            $stdout = Join-Path $env:RUNNER_TEMP ("bumbi-" + $test.TrimStart('-') + '-out.txt')
+            $stderr = Join-Path $env:RUNNER_TEMP ("bumbi-" + $test.TrimStart('-') + '-err.txt')
+            $p = Start-Process -FilePath $app -ArgumentList $test -Wait -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+            $output = (Get-Content $stdout -Raw -ErrorAction SilentlyContinue) + (Get-Content $stderr -Raw -ErrorAction SilentlyContinue)
+            if ($p.ExitCode -ne 0 -or $output -notmatch 'self-test PASSED') { throw "BUMBI $test failed ($($p.ExitCode)): $output" }
+          }
+          $stdout = Join-Path $env:RUNNER_TEMP 'node-test-out.txt'
+          $stderr = Join-Path $env:RUNNER_TEMP 'node-test-err.txt'
+          $env:SUPABASE_URL = ''
+          $p = Start-Process -FilePath (Resolve-Path './dist/windows-installer/OBS-TALLY-PRO-Bridge.exe').Path -ArgumentList (Resolve-Path './dist/windows-installer/bridge.cjs').Path -Wait -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          $output = (Get-Content $stdout -Raw -ErrorAction SilentlyContinue) + (Get-Content $stderr -Raw -ErrorAction SilentlyContinue)
+          if ($p.ExitCode -ne 1 -or $output -notmatch 'Set HTTPS SUPABASE_URL') { throw "Bridge bundle smoke test failed: $output" }
+      - name: Build branded Windows installation EXE
+        shell: pwsh
+        run: |
+          $isccCandidates = @(Get-ChildItem 'C:\Program Files (x86)' -Filter ISCC.exe -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match 'Inno Setup' } | Select-Object -ExpandProperty FullName)
+          if ($isccCandidates.Count -eq 0) {
+            choco install innosetup -y --no-progress
+            if ($LASTEXITCODE -ne 0) { throw 'Unable to install Inno Setup compiler' }
+            $isccCandidates = @(Get-ChildItem 'C:\Program Files (x86)' -Filter ISCC.exe -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match 'Inno Setup' } | Select-Object -ExpandProperty FullName)
+          }
+          if ($isccCandidates.Count -eq 0) { throw 'Inno Setup ISCC.exe is unavailable' }
+          & $isccCandidates[0] 'installer/BUMBI-OBS-TALLY-PRO.iss'
+          if ($LASTEXITCODE -ne 0) { throw "Installer compilation failed: $LASTEXITCODE" }
+          $result = 'dist/installer/BUMBI-OBS-TALLY-PRO-Setup-v1.0.0.exe'
+          if (!(Test-Path $result)) { throw 'Compiled installer EXE missing' }
+          Write-Host ('Installer SHA256 ' + (Get-FileHash $result -Algorithm SHA256).Hash)
+      - name: Upload tested Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: BUMBI-OBS-TALLY-PRO-Installer
+          path: dist/installer/BUMBI-OBS-TALLY-PRO-Setup-v1.0.0.exe
+          if-no-files-found: error
+          retention-days: 30

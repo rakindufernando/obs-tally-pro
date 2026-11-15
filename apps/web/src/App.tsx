@@ -15,6 +15,8 @@ const relativeTime=(iso:string|null|undefined)=>iso?new Date(iso).toLocaleTimeSt
 const toError=(e:unknown)=>e instanceof Error?e.message:String(e);
 const buttonCopy=async(text:string)=>{await navigator.clipboard.writeText(text);};
 const stateClass=(state:string)=>`status-${state.toLowerCase()}`;
+const bumbiLogo=`${import.meta.env.BASE_URL}bumbi-logo.png`;
+function BrandCredit(){return <div className="bumbi-credit"><img src={bumbiLogo} alt="BUMBI logo"/><span>Developed by <strong>BUMBI Software Solutions</strong></span></div>;} 
 
 function useIdentity(){
  const [loading,setLoading]=useState(true);const [auth,setAuth]=useState<AuthInfo|null>(null);
@@ -43,14 +45,14 @@ function Login(){
   if(error)setError(error.message);setWorking(false);
  }
  return <div className="auth-layout"><div className="auth-card">
-  <div className="brand brand-large"><span className="brand-icon"><Radio/></span><div>OBS <strong>TALLY PRO</strong><small>WIRELESS LIVE PRODUCTION</small></div></div>
+  <div className="brand brand-large"><img className="bumbi-header-logo" src={bumbiLogo} alt="BUMBI Software Solutions"/><div>OBS <strong>TALLY PRO</strong><small>WIRELESS LIVE PRODUCTION</small></div></div>
   <span className="eyebrow">SECURE DIRECTOR ACCESS</span><h1>Production starts here.</h1>
   <p>Sign in to your Supabase director account to manage real OBS tally lights.</p>
   <form onSubmit={submit}><label>Email address<input type="email" autoComplete="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="director@example.com"/></label>
   <label>Password<input type="password" autoComplete="current-password" required value={password} onChange={e=>setPassword(e.target.value)} placeholder="Your password"/></label>
   {error&&<div className="error"><AlertTriangle size={16}/>{error}</div>}
   <button disabled={working} className="btn full" type="submit">{working?'Signing in…':'Sign in securely'} <ArrowRight size={17}/></button></form>
-  <p className="auth-foot">Administrator provisioning is performed once using Supabase Auth and the setup SQL in the README.</p>
+  <p className="auth-foot">Administrator provisioning is performed once using Supabase Auth and the setup SQL in the README.</p><BrandCredit/>
  </div></div>;
 }
 const navItems=[['/dashboard','Overview',Monitor],['/cameras','Cameras',Camera],['/mapping','OBS mapping',Film],
@@ -119,7 +121,7 @@ function PairDialog({camera,onClose}:{camera:CameraRow;onClose:()=>void}){
  {code&&<div className="qr-panel"><QRCodeSVG value={url} size={320} level="L" marginSize={4} bgColor="#FFFFFF" fgColor="#000000"/></div>}
  {error&&<div className="error">{error}</div>}
  <div className="pair-buttons"><ActionButton secondary disabled={!code} onClick={()=>void buttonCopy(url)}><Clipboard size={16}/> Copy link</ActionButton><ActionButton disabled={busy} onClick={()=>void issue()}><RefreshCw size={16}/> New code</ActionButton></div>
- <p className="muted small">If scanning fails, use Copy link and send it privately to the assigned phone. The one-time code expires after 5 minutes. Regenerate or revoke access if a phone is lost.</p></div></div>;
+ <p className="muted small">If scanning fails, use Copy link and send it privately. The code expires after 5 minutes. Regenerate or revoke access if a phone is lost.</p></div></div>;
 }
 
 function Director({auth}:{auth:AuthInfo}){
@@ -174,7 +176,7 @@ function Director({auth}:{auth:AuthInfo}){
  const heading=page==='dashboard'?'Production overview':navItems.find(x=>x[0]==='/'+page)?.[1]||'Camera configuration';
  const activeDevices=cameras.flatMap(c=>c.camera_devices.filter(d=>!d.revoked_at&&d.last_seen_at&&clock-new Date(d.last_seen_at).getTime()<90_000)).length;
  return <div className="app-shell">
- <aside className={`sidebar ${showNav?'open':''}`}><Link to="/dashboard" className="brand" onClick={()=>setShowNav(false)}><span className="brand-icon"><Radio size={26}/></span><span>OBS <strong>TALLY PRO</strong><small>PRODUCTION CONTROL</small></span></Link>
+ <aside className={`sidebar ${showNav?'open':''}`}><Link to="/dashboard" className="brand" onClick={()=>setShowNav(false)}><img className="bumbi-header-logo" src={bumbiLogo} alt="BUMBI Software Solutions"/><span>OBS <strong>TALLY PRO</strong><small>PRODUCTION CONTROL</small></span></Link>
  <div className="sidebar-label">WORKSPACE</div><nav>{navItems.map(([href,label,Icon])=><NavLink key={href} to={href} onClick={()=>setShowNav(false)} className={({isActive})=>`nav-item ${isActive?'active':''}`}><Icon size={18}/>{label}</NavLink>)}</nav>
  <div className="sidebar-bottom"><div className={`bridge-health ${good?'online':'offline'}`}><span className="pulse"/> {good?'LIVE OBS SYNCHRONIZED':'SIGNAL UNAVAILABLE'}
  <small>{production?.last_bridge_at?'Bridge seen '+relativeTime(production.last_bridge_at):'Awaiting OBS Bridge'}</small></div>
@@ -225,7 +227,7 @@ function Director({auth}:{auth:AuthInfo}){
  <div className="section-heading"><h2>Production data</h2></div><p className="subtext">Streaming indicators are informational. A camera can be on Program even when streaming is stopped.</p></>}
  {production&&page==='settings'&&<SettingsPage auth={auth} production={production} showNotice={setNotice}/>}
  {page==='help'&&<HelpPage/>}
- <footer className="app-footer"><span>OBS TALLY PRO © 2026</span><span>SECURE CLOUD SYNC · GITHUB PAGES · SUPABASE</span></footer>
+ <footer className="app-footer"><span>OBS TALLY PRO © 2026</span><BrandCredit/></footer>
  </main>{production&&editor!==undefined&&<CameraEditor camera={editor} production={production} onClose={()=>setEditor(undefined)} onSaved={()=>void refresh()}/>}
  {pairing&&<PairDialog camera={pairing} onClose={()=>setPairing(null)}/>}</div>;
 }
@@ -270,13 +272,13 @@ function PairPage(){
   const cid=unwrap(await supabase.rpc('claim_pairing_code',{code,device_name:name})) as string;
   navigate(`/tally/${cid}`,{replace:true});
  }catch(e){setMessage(toError(e));}finally{setBusy(false);}}
- return <div className="auth-layout"><div className="auth-card pairing-page"><div className="brand brand-large"><span className="brand-icon"><Camera/></span><span>OBS <strong>TALLY PRO</strong><small>CAMERA DEVICE PAIRING</small></span></div>
+ return <div className="auth-layout"><div className="auth-card pairing-page"><div className="brand brand-large"><img className="bumbi-header-logo" src={bumbiLogo} alt="BUMBI Software Solutions"/><span>OBS <strong>TALLY PRO</strong><small>CAMERA DEVICE PAIRING</small></span></div>
  <span className="eyebrow">CAMERAMAN ACCESS</span><h1>Pair your camera.</h1><p>Accept your director's one-time invitation to turn this phone into a secure wireless tally light.</p>
  <label>Device name<input value={name} onChange={e=>setName(e.target.value)} maxLength={80}/></label>
  <button className="btn full" disabled={!code||busy} onClick={()=>void pair()}><Smartphone size={18}/>{busy?'Pairing securely…':'Pair this phone'}</button>
  {!code&&<div className="error">Pairing code is missing. Scan the QR code given by your director.</div>}
  {message&&<div className="error">{message}</div>}
- <p className="auth-foot">Each device receives only its authorized camera's tally state.</p></div></div>;
+ <p className="auth-foot">Each device receives only its authorized camera's tally state.</p><BrandCredit/></div></div>;
 }
 function playBeep(freq:number,duration:number){
  try{const AudioCtor=window.AudioContext;const ctx=new AudioCtor();const oscillator=ctx.createOscillator();
@@ -352,12 +354,12 @@ function TallyPage(){
  const fullscreen=async()=>{try{if(document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();else setError('Use Add to Home Screen for an app-like fullscreen display on iPhone.');}catch{setError('Fullscreen permission denied.');}};
  const screen=state==='PROGRAM'?'ON AIR':state==='PREVIEW'?'STANDBY':state==='IDLE'?'IDLE':state==='RECONNECTING'?'RECONNECTING':'SIGNAL UNAVAILABLE';
  return <div className={`tally-screen ${stateClass(state)}`}>
- <div className="tally-top"><span className="tally-brand"><Radio size={20}/> OBS TALLY PRO</span><button aria-label="Camera settings" className="tally-settings" onClick={()=>setSettings(!settings)}><Settings size={23}/></button></div>
+ <div className="tally-top"><span className="tally-brand"><img className="bumbi-tally-logo" src={bumbiLogo} alt="BUMBI Software Solutions"/> OBS TALLY PRO</span><button aria-label="Camera settings" className="tally-settings" onClick={()=>setSettings(!settings)}><Settings size={23}/></button></div>
  <div className="tally-center"><div className="tally-ring"><span/></div><div className="tally-headline">{screen}</div>
  <div className="tally-camera">{snapshot?`CAM ${String(snapshot.number).padStart(2,'0')}`:'CAMERA'}</div>
  <div className="tally-state-label">{state==='PROGRAM'?'PROGRAM':state==='PREVIEW'?'PREVIEW':state==='IDLE'?snapshot?.name||'NOT SELECTED':state==='RECONNECTING'?'CONNECTION INTERRUPTED':'OBS CONNECTION LOST'}</div>
  {state==='OFFLINE'&&<p className="tally-warning">{error||'Live status is not confirmed. Check connection or pairing.'}</p>}
- </div><div className="tally-bottom"><span><span className="status-orb"/> {state==='OFFLINE'?'NO TRUSTED SIGNAL':state==='RECONNECTING'?'RECONNECTING':`${snapshot?.production_name||'Production'} · SYNCED`}</span><span>{new Date(clock).toLocaleTimeString()}</span></div>
+ </div><div className="tally-bottom"><span><span className="status-orb"/> {state==='OFFLINE'?'NO TRUSTED SIGNAL':state==='RECONNECTING'?'RECONNECTING':`${snapshot?.production_name||'Production'} · SYNCED`}</span><span>{new Date(clock).toLocaleTimeString()}</span></div><div className="tally-brand-credit"><img src={bumbiLogo} alt="BUMBI"/> Developed by BUMBI Software Solutions</div>
  {settings&&<div className="mobile-settings"><div className="mobile-settings-head"><strong>Camera controls</strong><button className="icon-btn" onClick={()=>setSettings(false)}><X/></button></div>
  <button onClick={()=>void fullscreen()}><Maximize size={18}/> Enter fullscreen</button>
  <button onClick={()=>void wakeScreen()}><Power size={18}/> Keep screen awake {wake?'✓':''}</button>
@@ -398,11 +400,11 @@ function Dock(){
  if(loading)return <div className="loading">Loading</div>;
  if(!auth||!['director','administrator'].includes(auth.role))return <Navigate to="/login"/>;
  const good=Boolean(production&&freshness(production.last_bridge_at,production.obs_connected,clock));
- return <div className={`dock-page ${compact?'compact':''}`}><div className="dock-bar"><strong><Radio size={18}/> OBS TALLY PRO</strong><span className={good?'good':'bad'}>{good?'● LIVE OBS':'● SIGNAL LOST'}</span><select aria-label="Dock production" value={production?.id||''} onChange={e=>{setProductionId(e.target.value);localStorage.setItem('tally-dock-production',e.target.value);}}>{options.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select><button onClick={()=>{setCompact(!compact);localStorage.setItem('dock-compact',compact?'no':'yes');}}>Density</button><Link to="/dashboard"><Cog size={18}/></Link></div>
+ return <div className={`dock-page ${compact?'compact':''}`}><div className="dock-bar"><strong><img className="bumbi-dock-logo" src={bumbiLogo} alt="BUMBI Software Solutions"/> OBS TALLY PRO</strong><span className={good?'good':'bad'}>{good?'● LIVE OBS':'● SIGNAL LOST'}</span><select aria-label="Dock production" value={production?.id||''} onChange={e=>{setProductionId(e.target.value);localStorage.setItem('tally-dock-production',e.target.value);}}>{options.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select><button onClick={()=>{setCompact(!compact);localStorage.setItem('dock-compact',compact?'no':'yes');}}>Density</button><Link to="/dashboard"><Cog size={18}/></Link></div>
  <div className="dock-scenes"><span>PGM <b>{good?production?.program_scene||'None':'Unavailable'}</b></span><span>PVW <b>{good?(production?.studio_mode?production?.preview_scene||'None':'Studio Mode off'):'Unavailable'}</b></span></div>
  {error&&<div className="error">{error}</div>}
  <div className="dock-grid">{cameras.map(c=>{const state=good?c.tally_states?.state||'OFFLINE':'OFFLINE';return <div className={`dock-tile ${stateClass(state)}`} key={c.id}><small>CAM {String(c.number).padStart(2,'0')}</small><strong>{c.name}</strong><b>{state==='PROGRAM'?'ON AIR':state==='PREVIEW'?'STANDBY':state}</b></div>;})}</div>
- </div>;
+ <div className="dock-credit"><BrandCredit/></div></div>;
 }
 
 function CameraHome(){
@@ -418,8 +420,8 @@ function CameraHome(){
  return destination?<Navigate to={destination} replace/>:<div className="loading">Checking camera pairing</div>;
 }
 export default function App(){const {auth,loading}=useIdentity();
- if(!configured)return <div className="auth-layout"><div className="auth-card"><h1>Supabase configuration required</h1><p>Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY and rebuild the frontend. No simulated live statuses are displayed.</p></div></div>;
- if(loading)return <div className="loading"><Radio size={35}/> OBS TALLY PRO <small>Authenticating</small></div>;
+ if(!configured)return <div className="auth-layout"><div className="auth-card"><h1>Supabase configuration required</h1><p>Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY and rebuild the frontend. No simulated live statuses are displayed.</p><BrandCredit/></div></div>;
+ if(loading)return <div className="loading"><img className="bumbi-loading-logo" src={bumbiLogo} alt="BUMBI Software Solutions"/> OBS TALLY PRO <small>Authenticating</small></div>;
  return <Routes>
   <Route path="/login" element={auth&&['administrator','director'].includes(auth.role)?<Navigate to="/dashboard"/>:<Login/>}/>
   <Route path="/pair" element={<PairPage/>}/>
