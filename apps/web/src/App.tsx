@@ -116,10 +116,10 @@ function PairDialog({camera,onClose}:{camera:CameraRow;onClose:()=>void}){
  useEffect(()=>{void issue();},[camera.id]);
  return <div className="overlay" role="dialog" aria-modal="true"><div className="modal pair-modal"><header><div><span className="eyebrow">SECURE PHONE PAIRING</span><h2>{camera.name}</h2></div><button className="icon-btn" onClick={onClose}><X/></button></header>
  <p>Scan this one-time QR code using the assigned cameraman's phone. The code expires after 5 minutes.</p>
- {code&&<div className="qr-panel"><QRCodeSVG value={url} size={224} level="M" marginSize={3}/></div>}
+ {code&&<div className="qr-panel"><QRCodeSVG value={url} size={320} level="L" marginSize={4} bgColor="#FFFFFF" fgColor="#000000"/></div>}
  {error&&<div className="error">{error}</div>}
  <div className="pair-buttons"><ActionButton secondary disabled={!code} onClick={()=>void buttonCopy(url)}><Clipboard size={16}/> Copy link</ActionButton><ActionButton disabled={busy} onClick={()=>void issue()}><RefreshCw size={16}/> New code</ActionButton></div>
- <p className="muted small">Keep this QR code private. Regenerate or revoke access if a phone is lost.</p></div></div>;
+ <p className="muted small">If scanning fails, use Copy link and send it privately to the assigned phone. The one-time code expires after 5 minutes. Regenerate or revoke access if a phone is lost.</p></div></div>;
 }
 
 function Director({auth}:{auth:AuthInfo}){
