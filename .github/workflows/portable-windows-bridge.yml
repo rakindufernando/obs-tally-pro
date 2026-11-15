@@ -37,8 +37,11 @@ jobs:
         shell: pwsh
         run: |
           $env:SUPABASE_URL = ''
-          $out = & ./dist/windows-package/OBS-TALLY-PRO-Bridge.exe ./dist/windows-package/bridge.cjs 2>&1 | Out-String
-          if ($out -notmatch 'Set HTTPS SUPABASE_URL') { throw "Portable Bridge runtime check failed: $out" }
+          $stdout = Join-Path $env:RUNNER_TEMP 'bridge-stdout.txt'
+          $stderr = Join-Path $env:RUNNER_TEMP 'bridge-stderr.txt'
+          $process = Start-Process -FilePath (Resolve-Path './dist/windows-package/OBS-TALLY-PRO-Bridge.exe').Path -ArgumentList (Resolve-Path './dist/windows-package/bridge.cjs').Path -Wait -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          $out = (Get-Content $stdout -Raw -ErrorAction SilentlyContinue) + (Get-Content $stderr -Raw -ErrorAction SilentlyContinue)
+          if ($process.ExitCode -ne 1 -or $out -notmatch 'Set HTTPS SUPABASE_URL') { throw "Portable Bridge runtime check failed: exit $($process.ExitCode), output $out" }
           $tokens = $null
           $errors = $null
           [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path './portable/windows/bridge-launcher.ps1').Path, [ref]$tokens, [ref]$errors)
