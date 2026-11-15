@@ -27,6 +27,8 @@ jobs:
         run: |
           npm test
           npm run typecheck
+          if (!(Select-String -Path './windows-app/ModernBridgeWindow.cs' -Pattern 'STOP ALL & EXIT' -Quiet)) { throw 'Full shutdown control missing' }
+          if (!(Select-String -Path './apps/obs-bridge/src/obs.ts' -Pattern 'GetStreamStatus' -Quiet)) { throw 'OBS duration status integration missing' }
       - name: Bundle independent Windows OBS Bridge
         run: npm run package:portable -w @tally/obs-bridge
       - name: Assemble installed runtime
