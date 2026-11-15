@@ -99,7 +99,7 @@ function CameraEditor({camera,production,usedNumbers,onClose,onSaved,onRefresh}:
    if(usedNumbers.includes(number)&&number!==camera?.number)throw new Error(`Camera ${number} already exists. Choose another number.`);
    if(!rules.length)throw new Error('Select at least one OBS scene or source before saving.');
    const values={name:name.trim(),number,cameraman:operator.trim(),enabled,production_id:production.id};
-   let cid=camera?.id;
+   let cid:string=camera?.id||'';
    if(!cid){const created=await supabase.from('cameras').insert(values).select('id').single();if(created.error)throw created.error;if(!created.data?.id)throw new Error('Camera was not saved. Please retry.');cid=created.data.id;createdId=cid;}
    // Insert the new rules first. A failed insertion will not wipe existing mappings.
    const inserted=await supabase.from('camera_mappings').insert(rules.map(r=>({
