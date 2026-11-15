@@ -47,6 +47,38 @@ Deno.serve(async (req) => {
       const { error } = await admin.rpc('bridge_heartbeat', { p_token_hash });
       return error ? fail('Unauthorized bridge', 401) : respond({ ok: true, server_time: new Date().toISOString() });
     }
+    if (action === 'telemetry') {
+      const { data: identity, error: authErr } = await admin.rpc('bridge_configuration', { p_token_hash });
+      if (authErr || !identity || typeof identity.production_id !== 'string') return fail('Unauthorized bridge', 401);
+      const t = body?.telemetry;
+      if (!t || typeof t !== 'object' || Array.isArray(t) || JSON.stringify(t).length > 55000) return fail('Invalid telemetry', 400);
+      const num=(v:unknown)=>typeof v==='number'&&Number.isFinite(v)?Math.max(0,Math.min(v,1e14)):0;
+      const sourceRows=Array.isArray(t.sources)?t.sources:[];
+      const sources=sourceRows.slice(0,350).filter((s:unknown)=>s&&typeof s==='object'&&!Array.isArray(s)&&
+        ['SCENE','SOURCE'].includes((s as Record<string,unknown>).kind as string)&&
+        typeof (s as Record<string,unknown>).name==='string'&&
+        ((s as Record<string,unknown>).name as string).length<=150).map((s:Record<string,unknown>)=>({
+          kind:s.kind,name:s.name,uuid:typeof s.uuid==='string'&&s.uuid.length<128?s.uuid:null
+        }));
+      const st=t.stats && typeof t.stats==='object' ? t.stats as Record<string,unknown> : {};
+      const stream=t.stream && typeof t.stream==='object' ? t.stream as Record<string,unknown> : {};
+      const record=t.record && typeof t.record==='object' ? t.record as Record<string,unknown> : {};
+      const stats={
+        cpu_pct:num(st.cpu_pct),fps:num(st.fps),memory_mb:num(st.memory_mb),disk_gb:num(st.disk_gb),
+        render_ms:num(st.render_ms),render_skipped:num(st.render_skipped),render_total:num(st.render_total),
+        output_skipped:num(st.output_skipped),output_total:num(st.output_total),
+        stream:{active:stream.active===true,duration_ms:num(stream.duration_ms),bytes:num(stream.bytes),
+          congestion:num(stream.congestion),skipped_frames:num(stream.skipped_frames),total_frames:num(stream.total_frames)},
+        record:{active:record.active===true,paused:record.paused===true,duration_ms:num(record.duration_ms),bytes:num(record.bytes)},
+        studio_mode:t.studio_mode===true,program_scene:safeString(t.program_scene,150),
+        preview_scene:safeString(t.preview_scene,150),obs_connected:t.obs_connected===true
+      };
+      const { error } = await admin.from('productions').update({
+        obs_sources:sources,obs_stats:stats,obs_stats_at:new Date().toISOString()
+      }).eq('id',identity.production_id);
+      if (error) return fail('Telemetry unavailable', 500);
+      return respond({ok:true});
+    }
     if (action === 'publish') {
       if (!Number.isSafeInteger(body.sequence) || body.sequence <= 0 || typeof body.obs_connected !== 'boolean'
         || !Array.isArray(body.states) || body.states.length > 512

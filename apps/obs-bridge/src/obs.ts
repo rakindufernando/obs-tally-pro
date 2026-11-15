@@ -104,6 +104,60 @@ export class OBSConnector {
    this.treeCache.set(key,result);
    return result;
  }
+ // Capture actual OBS statistics and an OBS-derived catalogue for guided camera setup.
+ // This is read-only and never controls switching or exposes OBS credentials.
+ async getTelemetry(){
+   const snapshot=this.snapshot;
+   const sourceMap=new Map<string,{kind:'SCENE'|'SOURCE';name:string;uuid:string|null}>();
+   const put=(kind:'SCENE'|'SOURCE',name:string,uuid?:string|null)=>{
+     if(!name||name.length>150)return;
+     const key=kind+':'+(uuid||name);
+     if(!sourceMap.has(key))sourceMap.set(key,{kind,name,uuid:uuid||null});
+   };
+   const seen=new Set<TreeItem[]>();
+   function walk(items:TreeItem[],depth:number){
+     if(depth>12||seen.has(items))return;
+     seen.add(items);
+     for(const item of items){put(item.kind==='source'?'SOURCE':'SCENE',item.name,item.uuid);
+       if(item.children)walk(item.children,depth+1);
+     }
+   }
+   for(const [name,items] of Object.entries(snapshot.scenes)){
+     put('SCENE',name,snapshot.sceneUuids[name]);walk(items,0);
+   }
+   const stats:Record<string,number>={};
+   const stream:Record<string,number|boolean>={active:false,duration_ms:0,bytes:0,congestion:0,skipped_frames:0,total_frames:0};
+   const record:Record<string,number|boolean>={active:false,duration_ms:0,bytes:0,paused:false};
+   if(this.connected){
+     const [st,ss,rs]=await Promise.allSettled([this.obs.call('GetStats'),this.obs.call('GetStreamStatus'),this.obs.call('GetRecordStatus')]);
+     const num=(x:unknown):number=>typeof x==='number'&&Number.isFinite(x)?x:0;
+     if(st.status==='fulfilled'){
+       const d=asRecord(st.value);if(d){
+         stats.cpu_pct=num(d.cpuUsage);stats.fps=num(d.activeFps);stats.memory_mb=num(d.memoryUsage);
+         stats.disk_gb=num(d.availableDiskSpace)/1024;stats.render_ms=num(d.averageFrameRenderTime);
+         stats.render_skipped=num(d.renderSkippedFrames);stats.render_total=num(d.renderTotalFrames);
+         stats.output_skipped=num(d.outputSkippedFrames);stats.output_total=num(d.outputTotalFrames);
+       }
+     }
+     if(ss.status==='fulfilled'){
+       const d=asRecord(ss.value);if(d){
+         stream.active=d.outputActive===true;stream.duration_ms=num(d.outputDuration);
+         stream.bytes=num(d.outputBytes);stream.congestion=num(d.outputCongestion);
+         stream.skipped_frames=num(d.outputSkippedFrames);stream.total_frames=num(d.outputTotalFrames);
+       }
+     }
+     if(rs.status==='fulfilled'){
+       const d=asRecord(rs.value);if(d){
+         record.active=d.outputActive===true;record.duration_ms=num(d.outputDuration);
+         record.bytes=num(d.outputBytes);record.paused=d.outputPaused===true;
+       }
+     }
+   }
+   return {observed_at:new Date().toISOString(),obs_connected:this.connected,studio_mode:snapshot.studioMode,
+     program_scene:snapshot.program,preview_scene:snapshot.preview,streaming:stream.active,recording:record.active,
+     source_count:sourceMap.size,scene_count:Object.keys(snapshot.scenes).length,
+     sources:[...sourceMap.values()].slice(0,350),stats,stream,record};
+ }
  private async safeStatus(request:'GetStreamStatus'|'GetRecordStatus',key:'outputActive'){
    try{return Boolean((await this.obs.call(request))[key]);}catch{return false;}
  }

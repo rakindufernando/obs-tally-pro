@@ -15,7 +15,7 @@ const relativeTime=(iso:string|null|undefined)=>iso?new Date(iso).toLocaleTimeSt
 const toError=(e:unknown)=>e instanceof Error?e.message:String(e);
 const buttonCopy=async(text:string)=>{await navigator.clipboard.writeText(text);};
 const stateClass=(state:string)=>`status-${state.toLowerCase()}`;
-const bumbiLogo=`${import.meta.env.BASE_URL}bumbi-logo.png`;
+const bumbiLogo=`${import.meta.env.BASE_URL}bumbi-logo-white.png`;
 function BrandCredit(){return <div className="bumbi-credit"><img src={bumbiLogo} alt="BUMBI logo"/><span>Developed by <strong>BUMBI Software Solutions</strong></span></div>;} 
 
 function useIdentity(){
@@ -69,48 +69,82 @@ function CameraCard({camera,production,onPair,onEdit}:{camera:CameraRow;producti
  <div className="cam-actions"><button onClick={()=>onPair(camera)}><Link2 size={16}/> Pair phone</button><button onClick={()=>onEdit(camera)}><Settings size={16}/> Configure</button></div>
  </div>;
 }
-function CameraEditor({camera,production,onClose,onSaved}:{camera:CameraRow|null;production:Production;onClose:()=>void;onSaved:()=>void}){
- const [name,setName]=useState(camera?.name||'');const [number,setNumber]=useState(camera?.number||1);
- const [operator,setOperator]=useState(camera?.cameraman||'');const [enabled,setEnabled]=useState(camera?.enabled??true);
- const [kind,setKind]=useState<'SCENE'|'SOURCE'>('SCENE');const [mappingName,setMappingName]=useState('');
- const [mappingUuid,setMappingUuid]=useState('');const [excluded,setExcluded]=useState(false);
+function CameraEditor({camera,production,usedNumbers,onClose,onSaved,onRefresh}:{
+ camera:CameraRow|null;production:Production;usedNumbers:number[];onClose:()=>void;onSaved:()=>void;onRefresh:()=>void;
+}){
+ const nextNumber=Math.max(0,...usedNumbers)+1;
+ const [name,setName]=useState(camera?.name||`Camera ${String(nextNumber).padStart(2,'0')}`);
+ const [number,setNumber]=useState(camera?.number||nextNumber);
+ const [operator,setOperator]=useState(camera?.cameraman||'');
+ const [enabled,setEnabled]=useState(camera?.enabled??true);
  const [rules,setRules]=useState(camera?.camera_mappings.map(m=>({...m}))||[]);
+ const [showAdvanced,setShowAdvanced]=useState(false);
+ const [kind,setKind]=useState<'SCENE'|'SOURCE'>('SOURCE');
+ const [mappingName,setMappingName]=useState('');
+ const [query,setQuery]=useState('');
  const [error,setError]=useState('');const [busy,setBusy]=useState(false);
- const save=async()=>{
-  setBusy(true);setError('');try{
-   if(!name.trim())throw new Error('Camera name is required');
-   const values={name:name.trim(),number:Number(number),cameraman:operator.trim(),enabled,production_id:production.id};
-   const result=camera?await supabase.from('cameras').update(values).eq('id',camera.id).select('id').single():
-     await supabase.from('cameras').insert(values).select('id').single();
-   const cid=unwrap(result).id;
-   // Replace camera mapping set for one editor save. Write is production-operator RLS protected.
-   const deleted=await supabase.from('camera_mappings').delete().eq('camera_id',cid);
-   if(deleted.error)throw deleted.error;
-   if(rules.length){const inserted=await supabase.from('camera_mappings').insert(rules.map(r=>({
+ const catalog=(production.obs_sources||[]).filter((s)=>s.name&&(['SOURCE','SCENE'] as string[]).includes(s.kind));
+ const filtered=catalog.filter(s=>`${s.kind} ${s.name}`.toLowerCase().includes(query.trim().toLowerCase())).slice(0,36);
+ const mapped=(s:{kind:'SCENE'|'SOURCE';name:string;uuid:string|null})=>rules.some(r=>r.kind===s.kind&&(r.obs_uuid&&s.uuid?r.obs_uuid===s.uuid:r.obs_name===s.name)&&!r.excluded);
+ const choose=(s:{kind:'SCENE'|'SOURCE';name:string;uuid:string|null})=>setRules(old=>{
+   if(old.some(r=>r.kind===s.kind&&r.obs_name===s.name&&r.excluded===false))return old;
+   return [...old,{id:crypto.randomUUID(),kind:s.kind,obs_name:s.name,obs_uuid:s.uuid||null,excluded:false}];
+ });
+ async function save(){
+  setBusy(true);setError('');
+  let createdId:string|null=null;
+  try{
+   if(!name.trim())throw new Error('Enter a name for your camera.');
+   if(!Number.isInteger(number)||number<1||number>9999)throw new Error('Camera number must be between 1 and 9999.');
+   if(usedNumbers.includes(number)&&number!==camera?.number)throw new Error(`Camera ${number} already exists. Choose another number.`);
+   if(!rules.length)throw new Error('Select at least one OBS scene or source before saving.');
+   const values={name:name.trim(),number,cameraman:operator.trim(),enabled,production_id:production.id};
+   let cid=camera?.id;
+   if(!cid){const created=unwrap(await supabase.from('cameras').insert(values).select('id').single());cid=created.id;createdId=cid;}
+   // Insert the new rules first. A failed insertion will not wipe existing mappings.
+   const inserted=await supabase.from('camera_mappings').insert(rules.map(r=>({
     camera_id:cid,kind:r.kind,obs_name:r.obs_name,obs_uuid:r.obs_uuid||null,excluded:r.excluded
-   })));if(inserted.error)throw inserted.error;}
+   })));
+   if(inserted.error)throw inserted.error;
+   if(camera){
+    if(camera.camera_mappings.length){const oldRules=await supabase.from('camera_mappings').delete().in('id',camera.camera_mappings.map(m=>m.id));
+    if(oldRules.error)throw oldRules.error;}
+    const updated=await supabase.from('cameras').update(values).eq('id',camera.id);
+    if(updated.error)throw updated.error;
+   }
    onSaved();onClose();
-  }catch(e){setError(toError(e));}finally{setBusy(false);}
- };
- return <div className="overlay" role="dialog" aria-modal="true"><div className="modal wide">
-  <header><div><span className="eyebrow">CAMERA REGISTRY</span><h2>{camera?'Edit camera':'Add camera'}</h2></div><button className="icon-btn" onClick={onClose}><X/></button></header>
-  <div className="two-cols"><label>Camera number<input type="number" min="1" max="9999" value={number} onChange={e=>setNumber(Number(e.target.value))}/></label>
-  <label>Camera name<input value={name} maxLength={100} onChange={e=>setName(e.target.value)} placeholder="Main Camera"/></label></div>
-  <label>Cameraman name<input value={operator} onChange={e=>setOperator(e.target.value)} placeholder="Assigned cameraman"/></label>
+  }catch(e){
+   if(createdId)await supabase.from('cameras').delete().eq('id',createdId);
+   setError(toError(e));
+  }finally{setBusy(false);}
+ }
+ return <div className="overlay" role="dialog" aria-modal="true"><div className="modal wide camera-wizard">
+  <header><div><span className="eyebrow">GUIDED CAMERA SETUP</span><h2>{camera?'Edit camera':'Add a camera'}</h2><p className="muted">Name it, choose its real OBS source, then save.</p></div><button className="icon-btn" aria-label="Close editor" onClick={onClose}><X/></button></header>
+  <div className="wizard-step"><span className="wizard-step-no">01</span><div><strong>Camera information</strong><small>Next camera number is suggested automatically</small></div></div>
+  <div className="two-cols"><label>Camera number<input type="number" min={1} max={9999} value={number} onChange={e=>setNumber(Number(e.target.value))}/></label>
+   <label>Display name<input value={name} maxLength={100} onChange={e=>setName(e.target.value)} placeholder="Camera 02"/></label></div>
+  <label>Cameraman<input value={operator} onChange={e=>setOperator(e.target.value)} placeholder="Name displayed on director dashboard"/></label>
   <label className="checkline"><input type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)}/> Camera enabled</label>
-  <h3 className="modal-section">OBS scene and source mappings</h3><p className="muted">Match exact OBS names or persistent UUIDs. A source can be inside nested scenes.</p>
-  <div className="rule-list">{rules.map((r,i)=><div className="rule" key={i}><span>{r.excluded?'EXCLUDE':'INCLUDE'} {r.kind} <strong>{r.obs_name}</strong></span><button className="icon-btn" aria-label="Remove mapping" onClick={()=>setRules(old=>old.filter((_,j)=>j!==i))}><X size={16}/></button></div>)}
-  {!rules.length&&<div className="empty-small">No mappings configured yet</div>}</div>
-  <div className="two-cols"><label>Mapping type<select value={kind} onChange={e=>setKind(e.target.value as 'SCENE'|'SOURCE')}><option>SCENE</option><option>SOURCE</option></select></label>
-  <label>OBS scene or source name<input value={mappingName} onChange={e=>setMappingName(e.target.value)} placeholder="CAM 01"/></label></div>
-  <label>OBS UUID (optional)<input value={mappingUuid} onChange={e=>setMappingUuid(e.target.value)} placeholder="Optional persistent identifier"/></label>
-  <label className="checkline"><input type="checkbox" checked={excluded} onChange={e=>setExcluded(e.target.checked)}/> Exclude this source or scene</label>
-  <button className="btn secondary" type="button" onClick={()=>{if(!mappingName.trim())return;
-   setRules(old=>[...old,{id:crypto.randomUUID(),kind,obs_name:mappingName.trim(),obs_uuid:mappingUuid.trim()||null,excluded}]);setMappingName('');setMappingUuid('');setExcluded(false);}}><Plus size={16}/> Add mapping rule</button>
-  {error&&<div className="error">{error}</div>}
-  <footer className="modal-footer"><ActionButton secondary onClick={onClose}>Cancel</ActionButton><ActionButton disabled={busy} onClick={()=>void save()}>{busy?'Saving…':'Save camera'}</ActionButton></footer>
+  <div className="wizard-step"><span className="wizard-step-no">02</span><div><strong>Choose the actual OBS scene or source</strong><small>No need to guess the spelling</small></div></div>
+  <div className="wizard-catalog-head"><input aria-label="Search OBS sources" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search OBS sources and scenes..."/>
+   <button type="button" className="btn secondary" onClick={onRefresh}><RefreshCw size={15}/> Refresh</button></div>
+  {filtered.length>0?<div className="wizard-catalog">{filtered.map((s,i)=><button type="button" key={s.kind+':'+s.name+':'+i}
+    className={'wizard-source '+(mapped(s)?'picked':'')} onClick={()=>choose(s)}>
+    {s.kind==='SCENE'?<Film size={16}/>:<Camera size={16}/>}<span><strong>{s.name}</strong><small>{s.kind==='SCENE'?'OBS Scene':'OBS Source'}</small></span>{mapped(s)?<Check size={18}/>:<Plus size={18}/>}</button>)}</div>
+   :<div className="wizard-empty"><WifiOff size={19}/><span>{catalog.length?'No matching OBS source. Try another search.':'No OBS sources detected yet. Start the updated Windows Bridge with OBS open and click Refresh, or enter a source manually below.'}</span></div>}
+  <div className="wizard-step"><span className="wizard-step-no">03</span><div><strong>Assigned OBS mappings</strong><small>Camera turns red on Program and green on Preview</small></div></div>
+  <div className="rule-list">{rules.map((r,i)=><div className="rule" key={r.id||i}><span>{r.excluded?'EXCLUDE':'INCLUDE'} · {r.kind} <strong>{r.obs_name}</strong></span><button className="icon-btn" aria-label="Remove mapping" onClick={()=>setRules(old=>old.filter((_,j)=>j!==i))}><X size={16}/></button></div>)}
+    {!rules.length&&<div className="empty-small">Select a source above or use Manual mapping.</div>}</div>
+  <button type="button" className="wizard-advanced-toggle" onClick={()=>setShowAdvanced(!showAdvanced)}>{showAdvanced?'Hide':'Show'} manual source entry <ChevronDown size={15}/></button>
+  {showAdvanced&&<div className="wizard-advanced"><div className="two-cols"><label>Mapping type<select value={kind} onChange={e=>setKind(e.target.value as 'SCENE'|'SOURCE')}><option value="SOURCE">OBS source</option><option value="SCENE">OBS scene</option></select></label>
+    <label>Exact OBS name<input value={mappingName} onChange={e=>setMappingName(e.target.value)} placeholder="Video Capture Device"/></label></div>
+    <button type="button" className="btn secondary" onClick={()=>{const trimmed=mappingName.trim();if(!trimmed)return;choose({kind,name:trimmed,uuid:null});setMappingName('');}}><Plus size={16}/> Add manual mapping</button></div>}
+  {error&&<div className="error"><AlertTriangle size={16}/>{error}</div>}
+  <footer className="modal-footer"><ActionButton secondary onClick={onClose}>Cancel</ActionButton><ActionButton disabled={busy} onClick={()=>void save()}>{busy?'Saving camera…':'Save camera & mapping'}</ActionButton></footer>
+  <p className="muted small">Existing phone pairing stays attached to this camera when you edit its mappings.</p>
  </div></div>;
 }
+
 function PairDialog({camera,onClose}:{camera:CameraRow;onClose:()=>void}){
  const [code,setCode]=useState('');const [error,setError]=useState('');const [busy,setBusy]=useState(false);
  const url=`${window.location.origin}${import.meta.env.BASE_URL}#/pair?code=${encodeURIComponent(code)}`;
@@ -122,6 +156,26 @@ function PairDialog({camera,onClose}:{camera:CameraRow;onClose:()=>void}){
  {error&&<div className="error">{error}</div>}
  <div className="pair-buttons"><ActionButton secondary disabled={!code} onClick={()=>void buttonCopy(url)}><Clipboard size={16}/> Copy link</ActionButton><ActionButton disabled={busy} onClick={()=>void issue()}><RefreshCw size={16}/> New code</ActionButton></div>
  <p className="muted small">If scanning fails, use Copy link and send it privately. The code expires after 5 minutes. Regenerate or revoke access if a phone is lost.</p></div></div>;
+}
+
+function OBSStatsPanel({production,clock}:{production:Production;clock:number}){
+ const live=Boolean(production.obs_stats_at&&production.obs_connected&&clock-new Date(production.obs_stats_at).getTime()<17000);
+ const d=production.obs_stats||{};
+ const millis=(ms:number|undefined,active:boolean)=>{
+   if(!live||!active)return '00:00:00';
+   const delta=Math.max(0,Math.min(17000,clock-new Date(production.obs_stats_at!).getTime()));
+   const seconds=Math.floor(((ms||0)+delta)/1000);
+   const hours=Math.floor(seconds/3600);const mins=Math.floor(seconds%3600/60);const secs=seconds%60;
+   return [hours,mins,secs].map(x=>String(x).padStart(2,'0')).join(':');
+ };
+ const metric=(label:string,value:string)=> <div className="obs-stat-tile" key={label}><small>{label}</small><strong>{live?value:'—'}</strong></div>;
+ return <section className="obs-telemetry-panel">
+   <div className="obs-telemetry-title"><div><span className="eyebrow">OBS LIVE TELEMETRY</span><h2>Streaming & performance</h2></div><span className={'obs-telemetry-fresh '+(live?'fresh':'stale')}><span/>{live?'Live OBS readings':'Waiting for updated Bridge'}</span></div>
+   <div className="obs-time-grid"><div className={'obs-time-tile '+(live&&d.stream?.active?'is-live':'')}><span>LIVE STREAMING</span><strong>{millis(d.stream?.duration_ms,d.stream?.active===true)}</strong><small>{live&&d.stream?.active?'Streaming now':'Stream stopped'}</small></div>
+     <div className={'obs-time-tile '+(live&&d.record?.active?'is-recording':'')}><span>RECORDING</span><strong>{millis(d.record?.duration_ms,d.record?.active===true)}</strong><small>{live&&d.record?.active?(d.record?.paused?'Paused':'Recording now'):'Recording stopped'}</small></div></div>
+   <div className="obs-stat-grid">{metric('CPU',`${(d.cpu_pct||0).toFixed(1)}%`)}{metric('FPS',`${(d.fps||0).toFixed(1)}`)}{metric('Memory',`${Math.round(d.memory_mb||0)} MB`)}{metric('Render skipped',String(Math.round(d.render_skipped||0)))}{metric('Output skipped',String(Math.round(d.output_skipped||0)))}{metric('Free disk',`${(d.disk_gb||0).toFixed(1)} GB`)}{metric('OBS scenes / sources',String(production.obs_sources?.length||0))}</div>
+   <p className="obs-telemetry-note">Metrics are read from OBS WebSocket on the connected streaming PC. The tally Bridge cannot start or stop a stream remotely.</p>
+ </section>;
 }
 
 function Director({auth}:{auth:AuthInfo}){
@@ -167,6 +221,7 @@ function Director({auth}:{auth:AuthInfo}){
  async function call(fn:()=>Promise<void>){setBusy(true);setError('');try{await fn();await refresh();}catch(e){setError(toError(e));}finally{setBusy(false);}}
  const good=Boolean(production&&freshness(production.last_bridge_at,production.obs_connected,clock));
  const effective=(c:CameraRow)=>good?(c.tally_states?.state||'OFFLINE'):'OFFLINE';
+ useEffect(()=>{const id=setInterval(()=>setClock(Date.now()),1000);return()=>clearInterval(id);},[]);
  const live=cameras.filter(c=>effective(c)==='PROGRAM').length;
  const preview=cameras.filter(c=>effective(c)==='PREVIEW').length;
  const page=location.pathname.split('/')[1]||'dashboard';
@@ -196,6 +251,7 @@ function Director({auth}:{auth:AuthInfo}){
  <div className="metric red"><span>ON PROGRAM</span><strong>{live.toString().padStart(2,'0')}</strong><Radio size={22}/></div>
  <div className="metric green"><span>ON PREVIEW</span><strong>{preview.toString().padStart(2,'0')}</strong><Eye size={22}/></div>
  <div className="metric blue"><span>ONLINE DEVICES</span><strong>{activeDevices.toString().padStart(2,'0')}</strong><Smartphone size={22}/></div></div>
+ <OBSStatsPanel production={production} clock={clock}/>
  <div className="section-heading"><div><span className="eyebrow">REALTIME TALLY MONITORING</span><h2>Camera lineup <span className="muted">({cameras.length})</span></h2></div><div className="heading-actions"><ActionButton secondary onClick={()=>void refresh()}><RefreshCw size={16}/> Refresh</ActionButton><ActionButton onClick={()=>setEditor(null)}><Plus size={17}/> Camera</ActionButton></div></div>
  <div className="camera-grid">{cameras.map(c=><CameraCard key={c.id} camera={c} production={production} onPair={setPairing} onEdit={setEditor}/>)}</div>
  {!cameras.length&&<div className="empty"><Camera/><h3>No cameras configured</h3><p>Add a camera, then map it to an OBS scene or source.</p></div>}
@@ -208,7 +264,7 @@ function Director({auth}:{auth:AuthInfo}){
  <td>{c.camera_mappings.length}</td><td><StateBadge state={effective(c)}/></td><td>{c.camera_devices.filter(d=>!d.revoked_at).length}</td>
  <td className="actions-cell"><button onClick={()=>setPairing(c)}><Link2 size={15}/> Pair</button><button onClick={()=>setEditor(c)}><Cog size={15}/> Edit</button>
  <button className="danger" onClick={()=>{if(window.confirm(`Delete ${c.name} and all paired access?`))void call(async()=>{const r=await supabase.from('cameras').delete().eq('id',c.id);if(r.error)throw r.error;});}}><Trash2 size={15}/></button></td></tr>)}</tbody></table></div></>}
- {production&&page==='mapping'&&<><div className="subtext">Map actual sources, including nested scenes and picture-in-picture layouts. Program has priority over Preview.</div>
+ {production&&page==='mapping'&&<><div className="subtext">Choose an OBS scene or source in the camera editor. Sources are detected by the connected Windows Bridge. Program has priority over Preview.</div>
  <div className="mapping-list">{cameras.map(c=><div className="mapping-card" key={c.id}><div><span className="cam-number">CAM {String(c.number).padStart(2,'0')}</span><h3>{c.name}</h3><p>{c.camera_mappings.length} mapping rules</p></div>
  <div className="mapping-tags">{c.camera_mappings.map(m=><span key={m.id} className={m.excluded?'excluded':''}>{m.excluded?'− ':'+ '}{m.kind} · {m.obs_name}</span>)}{!c.camera_mappings.length&&<span>Unmapped</span>}</div>
  <ActionButton secondary onClick={()=>setEditor(c)}><Cog size={16}/> Configure</ActionButton></div>)}</div></>}
@@ -224,11 +280,12 @@ function Director({auth}:{auth:AuthInfo}){
  {production&&page==='diagnostics'&&<><div className="diagnostics-grid"><Diagnostic title="OBS WebSocket" value={good?'CONNECTED':'DISCONNECTED'} note="Authenticated OBS Bridge status"/><Diagnostic title="Cloud last heartbeat" value={relativeTime(production.last_bridge_at)} note="Stale after 30 seconds"/>
  <Diagnostic title="Last accepted sequence" value={String(production.last_sequence)} note="Monotonic state ordering"/><Diagnostic title="OBS Studio Mode" value={production.studio_mode?'ENABLED':'DISABLED'} note="Preview requires Studio Mode"/>
  <Diagnostic title="OBS streaming" value={good?(production.streaming?'ACTIVE':'STOPPED'):'UNKNOWN'} note="Independent of Program selection"/><Diagnostic title="OBS recording" value={good?(production.recording?'ACTIVE':'STOPPED'):'UNKNOWN'} note="Independent of Program selection"/></div>
+ <OBSStatsPanel production={production} clock={clock}/>
  <div className="section-heading"><h2>Production data</h2></div><p className="subtext">Streaming indicators are informational. A camera can be on Program even when streaming is stopped.</p></>}
  {production&&page==='settings'&&<SettingsPage auth={auth} production={production} showNotice={setNotice}/>}
  {page==='help'&&<HelpPage/>}
  <footer className="app-footer"><span>OBS TALLY PRO © 2026</span><BrandCredit/></footer>
- </main>{production&&editor!==undefined&&<CameraEditor camera={editor} production={production} onClose={()=>setEditor(undefined)} onSaved={()=>void refresh()}/>}
+ </main>{production&&editor!==undefined&&<CameraEditor camera={editor} production={production} usedNumbers={cameras.map(c=>c.number)} onClose={()=>setEditor(undefined)} onSaved={()=>void refresh()} onRefresh={()=>void refresh()}/>}
  {pairing&&<PairDialog camera={pairing} onClose={()=>setPairing(null)}/>}</div>;
 }
 function Diagnostic({title,value,note}:{title:string;value:string;note:string}){return <div className="diagnostic"><span>{title}</span><strong>{value}</strong><small>{note}</small></div>;}

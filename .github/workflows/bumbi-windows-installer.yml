@@ -36,14 +36,16 @@ jobs:
           Copy-Item (Get-Command node).Source dist/windows-installer/OBS-TALLY-PRO-Bridge.exe
           Copy-Item ./apps/obs-bridge/dist/bridge.cjs dist/windows-installer/bridge.cjs
           Copy-Item ./windows-app/bumbi-logo.png dist/windows-installer/bumbi-logo.png
-          Copy-Item ./windows-app/bumbi.ico dist/windows-installer/bumbi.ico
+          Copy-Item ./windows-app/bumbi-logo-white.png dist/windows-installer/bumbi-logo-white.png
+          Copy-Item ./windows-app/bumbi-mark-white.png dist/windows-installer/bumbi-mark-white.png
+          Copy-Item ./windows-app/bumbi-v2.ico dist/windows-installer/bumbi.ico
           Copy-Item ./installer/README-SETUP.txt dist/windows-installer/README-SETUP.txt
       - name: Compile native BUMBI desktop control panel
         shell: pwsh
         run: |
           $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework\v4.0.30319\csc.exe'
           if (!(Test-Path $csc)) { throw 'Windows .NET Framework compiler not found' }
-          $compilerArgs = @('/nologo','/target:winexe','/platform:anycpu','/optimize+', '/reference:System.dll', '/reference:System.Core.dll', '/reference:System.Windows.Forms.dll', '/reference:System.Drawing.dll', '/reference:System.Security.dll', '/reference:System.Web.Extensions.dll', '/out:dist/windows-installer/BUMBI-OBS-TALLY-PRO.exe', ('/win32icon:' + (Resolve-Path 'windows-app/bumbi.ico').Path), (Resolve-Path 'windows-app/Program.cs').Path)
+          $compilerArgs = @('/nologo','/target:winexe','/platform:anycpu','/optimize+', '/reference:System.dll', '/reference:System.Core.dll', '/reference:System.Windows.Forms.dll', '/reference:System.Drawing.dll', '/reference:System.Security.dll', '/reference:System.Web.Extensions.dll', '/out:dist/windows-installer/BUMBI-OBS-TALLY-PRO.exe', ('/win32icon:' + (Resolve-Path 'windows-app/bumbi.ico').Path), (Resolve-Path 'windows-app/Program.cs').Path, (Resolve-Path 'windows-app/ModernBridgeWindow.cs').Path)
           & $csc @compilerArgs
           if ($LASTEXITCODE -ne 0) { throw "Desktop compiler failed with exit code $LASTEXITCODE" }
           if (!(Test-Path 'dist/windows-installer/BUMBI-OBS-TALLY-PRO.exe')) { throw 'Control panel EXE missing' }
@@ -76,7 +78,7 @@ jobs:
           if ($isccCandidates.Count -eq 0) { throw 'Inno Setup ISCC.exe is unavailable' }
           & $isccCandidates[0] 'installer/BUMBI-OBS-TALLY-PRO.iss'
           if ($LASTEXITCODE -ne 0) { throw "Installer compilation failed: $LASTEXITCODE" }
-          $result = 'dist/installer/BUMBI-OBS-TALLY-PRO-Setup-v1.0.0.exe'
+          $result = 'dist/installer/BUMBI-OBS-TALLY-PRO-Setup-v2.0.0.exe'
           if (!(Test-Path $result)) { throw 'Compiled installer EXE missing' }
           Write-Host ('Installer SHA256 ' + (Get-FileHash $result -Algorithm SHA256).Hash)
       - name: Upload tested Windows installer

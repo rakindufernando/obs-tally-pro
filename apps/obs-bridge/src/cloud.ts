@@ -59,6 +59,11 @@ export class CloudBridge {
    try{await this.call('heartbeat',{},this.saved.token);this.connected=true;}
    catch(e){this.connected=false;console.error('Cloud heartbeat',e instanceof Error?e.message:e);}
  }
+ // Bridge-token protected, read-only OBS metrics sent separately from authoritative tally snapshots.
+ async sendTelemetry(telemetry:Record<string,unknown>){
+   try{await this.call('telemetry',{telemetry},this.saved.token);this.connected=true;}
+   catch(e){console.warn('Cloud telemetry',e instanceof Error?e.message:'unavailable');}
+ }
  getCameraCount(){return this.cameras.length;}
  getCloudConnected(){return this.connected;}
  private signature(snapshot:ObsSnapshot){

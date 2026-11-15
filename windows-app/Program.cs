@@ -33,7 +33,7 @@ namespace BumbiTally
             if (args.Length > 0 && args[0] == "--remove-startup") { SetAutoStart(false); return; }
             if (args.Length > 0 && args[0] == "--self-test")
             {
-                bool okay = File.Exists(Runner) && File.Exists(Script) && File.Exists(Path.Combine(AppFolder,"bumbi-logo.png"));
+                bool okay = File.Exists(Runner) && File.Exists(Script) && File.Exists(Path.Combine(AppFolder,"bumbi-logo-white.png"));
                 if (okay) {
                     string sample = "test-only-password";
                     okay = Decode(Encode(sample)) == sample;
@@ -46,9 +46,9 @@ namespace BumbiTally
             {
                 try {
                     Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false);
-                    using(Splash splash = new Splash()) using(BridgeWindow form = new BridgeWindow())
+                    using(BumbiSplashV2 splash = new BumbiSplashV2()) using(ModernBridgeWindow form = new ModernBridgeWindow())
                     {
-                        bool okay = splash.Controls.Count >= 3 && form.Controls.Count >= 14;
+                        bool okay = splash.Controls.Count >= 4 && form.HasShutdownControl;
                         Console.WriteLine(okay ? "BUMBI desktop GUI self-test PASSED" : "BUMBI desktop GUI self-test FAILED");
                         Environment.ExitCode = okay ? 0 : 1;
                     }
@@ -61,11 +61,11 @@ namespace BumbiTally
                 if (!newInstance) { MessageBox.Show("BUMBI OBS TALLY PRO is already running. Check the taskbar.", "OBS TALLY PRO", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
-                using (Splash splash = new Splash())
+                using (BumbiSplashV2 splash = new BumbiSplashV2())
                 {
                     splash.Show(); Application.DoEvents(); Thread.Sleep(1000); splash.Close();
                 }
-                Application.Run(new BridgeWindow());
+                Application.Run(new ModernBridgeWindow());
             }
         }
         internal static string Encode(string plain)

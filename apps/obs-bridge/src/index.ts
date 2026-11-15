@@ -22,11 +22,33 @@ async function main(){
 
  const obs=new OBSConnector(process.env.OBS_URL||'ws://127.0.0.1:4455',process.env.OBS_PASSWORD||'',s=>cloud.publish(s));
  obs.start();
+ // One authoritative OBS status poll feeds the native desktop statistics and cloud dashboard.
+ // The file contains no credentials and is only an ephemeral local status snapshot.
+ const statusPath=process.env.BRIDGE_STATUS_PATH;
+ let telemetryBusy=false;
+ const pollTelemetry=async()=>{
+   if(telemetryBusy)return;
+   telemetryBusy=true;
+   try{
+     const t=await obs.getTelemetry();
+     const status={...t,cloud_connected:cloud.getCloudConnected()};
+     if(statusPath){
+       const {mkdirSync,writeFileSync,renameSync}=await import('node:fs');
+       const {dirname}=await import('node:path');
+       mkdirSync(dirname(statusPath),{recursive:true});
+       const tmp=statusPath+'.tmp';writeFileSync(tmp,JSON.stringify(status));renameSync(tmp,statusPath);
+     }
+     if(t.obs_connected)await cloud.sendTelemetry(t);
+   }catch(e){console.warn('OBS telemetry unavailable',e instanceof Error?e.message:'unknown');}
+   finally{telemetryBusy=false;}
+ };
+ void pollTelemetry();
+ const statsTimer=setInterval(()=>{void pollTelemetry();},8000);
  // Reconcile cloud camera mappings and connection health continuously.
  const configTimer=setInterval(async()=>{try{await cloud.refreshConfig();}catch(e){console.error('Bridge config sync',e instanceof Error?e.message:e);}},15000);
  const heartbeatTimer=setInterval(async()=>{await cloud.heartbeat();},10000);
  console.log(`OBS TALLY PRO bridge started. Cameras ${cloud.getCameraCount()}. No inbound ports opened.`);
- const stop=()=>{clearInterval(configTimer);clearInterval(heartbeatTimer);obs.stop();process.exit(0);};
+ const stop=()=>{clearInterval(configTimer);clearInterval(heartbeatTimer);clearInterval(statsTimer);obs.stop();process.exit(0);};
  process.once('SIGINT',stop);
  process.once('SIGTERM',stop);
 }

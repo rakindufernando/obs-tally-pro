@@ -234,3 +234,8 @@ See `docs/VALIDATION.md` for more comprehensive failure and RLS acceptance tests
 ## License
 
 MIT. See `LICENSE`.
+
+
+## BUMBI OBS TALLY PRO 2.0
+
+Windows 2.0 upgrades in place using the same Inno Setup AppId and preserves per-Windows-user local encrypted connection settings. The new native black interface has an explicit STOP ALL & EXIT action; closing the main window also stops its child Bridge. The desktop performance view reads local short-lived OBS telemetry snapshots, and the website reads the newest authorized OBS source catalogue and live stream and record metrics from Supabase. Open CAMERA SETUP and choose an OBS source by its real name. A fresh Bridge 2.0 installation is required to publish telemetry. No live status is inferred if the Bridge or data are stale.
