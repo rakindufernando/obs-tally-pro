@@ -53,11 +53,24 @@ function CrewMultiview({productionId,ownCameraId,scenes}:{productionId:string;ow
  const display=cameras.filter(c=>chosen.length===0||chosen.includes(c.id)).slice(0,max);
  const [switching,setSwitching]=useState(false);
  const switchScene=async()=>{
-  if(!selectedScene||!scenes?.includes(selectedScene))return;
+  if(!selectedScene||!scenes?.includes(selectedScene)||switching)return;
+  const requested=selectedScene;
   setSwitching(true);setNotice('');
-  const r=await supabase.rpc('request_obs_scene_switch',{pid:productionId,requested_scene:selectedScene});
-  setNotice(r.error?`Scene request failed. ${r.error.message}`:'Scene switch requested. Verify OBS Program status.');
-  setSwitching(false);
+  try{
+   const r=await supabase.rpc('request_obs_scene_switch',{pid:productionId,requested_scene:requested});
+   if(r.error)throw r.error;
+   const commandId=r.data as string;
+   let finished=false;
+   for(let attempt=0;attempt<15;attempt++){
+    await new Promise(resolve=>setTimeout(resolve,1200));
+    const status=await supabase.from('obs_scene_commands').select('status,result_message').eq('id',commandId).maybeSingle();
+    if(status.error)throw status.error;
+    if(status.data?.status==='completed'){setNotice(`OBS confirmed Program scene ${requested}`);finished=true;break;}
+    if(status.data?.status==='failed'){setNotice(`Scene switch failed. ${status.data.result_message}`);finished=true;break;}
+   }
+   if(!finished)setNotice('OBS Bridge has not confirmed this command. Check connection and activity before retrying.');
+  }catch(e){setNotice(`Scene request failed. ${e instanceof Error?e.message:String(e)}`);}
+  finally{setSwitching(false);}
  };
  const enterFullscreen=async()=>{
   try{if(!document.fullscreenElement)await ref.current?.requestFullscreen();else await document.exitFullscreen();}
