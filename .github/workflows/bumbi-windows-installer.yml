@@ -20,6 +20,9 @@ on:
       - '.github/workflows/bumbi-windows-installer.yml'
 permissions:
   contents: read
+concurrency:
+  group: windows-installer-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   windows-installer:
     runs-on: windows-latest
@@ -80,13 +83,21 @@ jobs:
       - name: Build branded Windows installation EXE
         shell: pwsh
         run: |
-          $isccCandidates = @(Get-ChildItem 'C:\Program Files (x86)' -Filter ISCC.exe -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match 'Inno Setup' } | Select-Object -ExpandProperty FullName)
-          if ($isccCandidates.Count -eq 0) {
-            choco install innosetup -y --no-progress
+          $isccCandidates = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe",
+            "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
+          ) | Where-Object { Test-Path $_ }
+          if (!$isccCandidates) {
+            choco install innosetup -y --no-progress --limit-output
             if ($LASTEXITCODE -ne 0) { throw 'Unable to install Inno Setup compiler' }
-            $isccCandidates = @(Get-ChildItem 'C:\Program Files (x86)' -Filter ISCC.exe -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match 'Inno Setup' } | Select-Object -ExpandProperty FullName)
+            $isccCandidates = @(
+              "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+              "${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe",
+              "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
+            ) | Where-Object { Test-Path $_ }
           }
-          if ($isccCandidates.Count -eq 0) { throw 'Inno Setup ISCC.exe is unavailable' }
+          if (!$isccCandidates) { throw 'Inno Setup ISCC.exe unavailable at standard installation paths' }
           & $isccCandidates[0] 'installer/BUMBI-OBS-TALLY-PRO.iss'
           if ($LASTEXITCODE -ne 0) { throw "Installer compilation failed: $LASTEXITCODE" }
           $result = 'dist/installer/BUMBI-OBS-TALLY-PRO-Setup-v3.1.0.exe'
