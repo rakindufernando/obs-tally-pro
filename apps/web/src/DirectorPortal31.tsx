@@ -27,6 +27,9 @@ export function DirectorPortal31(){
  const [sourceKey,setSourceKey]=useState('');const [saving,setSaving]=useState(false);
  const [scene,setScene]=useState('');const [lastSceneCommand,setLastSceneCommand]=useState('');
  const [mediaUrl,setMediaUrl]=useState('');
+ const [cameraMedia,setCameraMedia]=useState<Record<string,string>>({});
+ const [mediaSaving,setMediaSaving]=useState(false);
+ const [scenePending,setScenePending]=useState(false);
  const production=useMemo(()=>productions.find(p=>p.id===productionId),[productions,productionId]);
  const online=Boolean(production?.obs_connected&&production.last_bridge_at&&(clock-new Date(production.last_bridge_at).getTime())<30000);
  const authorized=role==='director';
@@ -53,14 +56,16 @@ export function DirectorPortal31(){
   const id=ps.some(p=>p.id===productionId)?productionId:ps[0]?.id||'';
   if(id!==productionId){setProductionId(id);return;}
   if(!id){setCameras([]);return;}
-  const [cams,media]=await Promise.all([
+  const [cams,media,cameraFeeds]=await Promise.all([
    directorClient31.from('cameras').select('*,tally_states(*),camera_mappings(*),camera_devices(*)').eq('production_id',id).order('number'),
-   directorClient31.from('production_media_settings').select('whep_url').eq('production_id',id).maybeSingle()
+   directorClient31.from('production_media_settings').select('whep_url').eq('production_id',id).maybeSingle(),
+   directorClient31.from('director_camera_media').select('camera_id,whep_url').eq('production_id',id)
   ]);
   if(cams.error){setError(cams.error.message);return;}
   setCameras((cams.data||[]).map((c:any)=>({...c,tally_states:Array.isArray(c.tally_states)?c.tally_states[0]:c.tally_states,
    camera_mappings:c.camera_mappings||[],camera_devices:c.camera_devices||[]})) as Camera[]);
   if(!media.error)setMediaUrl(media.data?.whep_url||'');
+  if(!cameraFeeds.error)setCameraMedia(Object.fromEntries((cameraFeeds.data||[]).map(x=>[x.camera_id,x.whep_url])));
   setClock(Date.now());
  },[userId,role,productionId,authorized]);
  useEffect(()=>{if(!userId)return;
@@ -103,17 +108,24 @@ export function DirectorPortal31(){
   setSaving(false);
  };
  const switchScene=async()=>{
-  if(!production||!scene)return;setError('');
-  const r=await directorClient31.rpc('request_obs_scene_switch',{pid:production.id,requested_scene:scene});
-  if(r.error)setError(r.error.message);
-  else{
-   const id=r.data as string;setLastSceneCommand(id);setNotice('Switch submitted to the authenticated OBS Bridge');
-   const check=async()=>{const row=await directorClient31.from('obs_scene_commands').select('status,result_message').eq('id',id).maybeSingle();
-    if(row.data?.status==='completed')setNotice(`OBS confirmed ${scene} is now Program`);
-    if(row.data?.status==='failed')setError(`OBS scene switch failed. ${row.data.result_message}`);
-    return row.data?.status;};
-   for(let n=0;n<5;n++){await new Promise(resolve=>setTimeout(resolve,1200));const status=await check();if(status==='completed'||status==='failed')break;}
-  }
+  if(!production||!scene||scenePending)return;
+  const requested=scene;
+  setScenePending(true);setError('');setNotice('');
+  try{
+   const r=await directorClient31.rpc('request_obs_scene_switch',{pid:production.id,requested_scene:requested});
+   if(r.error)throw r.error;
+   const id=r.data as string;
+   setLastSceneCommand(id);
+   let terminal=false;
+   for(let n=0;n<15;n++){
+    await new Promise(resolve=>setTimeout(resolve,1200));
+    const row=await directorClient31.from('obs_scene_commands').select('status,result_message').eq('id',id).maybeSingle();
+    if(row.error)throw row.error;
+    if(row.data?.status==='completed'){setNotice(`OBS Bridge confirmed Program scene ${requested}`);terminal=true;break;}
+    if(row.data?.status==='failed'){setError(`OBS Bridge rejected scene switch. ${row.data.result_message}`);terminal=true;break;}
+   }
+   if(!terminal)setError('No OBS Bridge acknowledgement received yet. Check connection and command status before repeating.');
+  }catch(e){setError(msg(e));}finally{setScenePending(false);}
  };
  const saveMedia=async(e:FormEvent)=>{
   e.preventDefault();if(!production)return;setError('');
@@ -126,7 +138,22 @@ export function DirectorPortal31(){
    setError('Enter an HTTPS WHEP URL ending in '+expected);return;
   }
   const r=await directorClient31.from('production_media_settings').upsert({production_id:production.id,whep_url:mediaUrl.trim(),updated_by:userId,updated_at:new Date().toISOString()});
-  if(r.error)setError(r.error.message);else setNotice('Relay endpoint saved. The media server must independently verify Supabase bearer tokens.');
+  if(r.error)setError(r.error.message);
+  else setNotice('Program endpoint stored. Live playback still requires an operational authenticated relay and OBS publisher.');
+ };
+ const saveCameraMedia=async(cid:string)=>{
+  if(!production||mediaSaving)return;
+  const url=(cameraMedia[cid]||'').trim();
+  setMediaSaving(true);setError('');setNotice('');
+  try{
+   const path=`/camera-${cid}/whep`;
+   if(url&&(!/^https:\/\/[^/?#]+\/camera-[0-9a-f-]{36}\/whep$/.test(url)||new URL(url).pathname!==path))throw new Error('Enter an HTTPS camera WHEP endpoint ending in '+path);
+   const r=url?await directorClient31.from('director_camera_media').upsert({
+    camera_id:cid,production_id:production.id,whep_url:url,updated_by:userId,updated_at:new Date().toISOString()
+   }):await directorClient31.from('director_camera_media').delete().eq('production_id',production.id).eq('camera_id',cid);
+   if(r.error)throw r.error;
+   setNotice(url?'Camera endpoint saved. Playback must still be verified against the media relay.':'Camera endpoint removed');
+  }catch(e){setError(msg(e));}finally{setMediaSaving(false);}
  };
  if(loading)return <main className="director31-login"><p>Checking director authorization</p></main>;
  if(!userId||!authorized)return <main className="director31-login"><div className="director31-auth-card">
@@ -160,7 +187,7 @@ export function DirectorPortal31(){
    <div className="director31-panel"><h2>Program control</h2><p>Current Program · <strong>{online?production.program_scene||'None':'Unknown until OBS reconnects'}</strong></p>
     <p>Preview · <strong>{online?production.preview_scene||'None':'Unknown'}</strong></p>
     <div className="director31-controls"><select value={scene} onChange={e=>setScene(e.target.value)}><option value="">Choose a detected OBS scene</option>{scenes.map(s=><option key={s}>{s}</option>)}</select>
-    <button disabled={!online||!scene} onClick={()=>void switchScene()}>SWITCH PROGRAM</button></div>
+    <button disabled={!online||!scene||scenePending} onClick={()=>void switchScene()}>{scenePending?'WAITING FOR OBS':'SWITCH PROGRAM'}</button></div>
     {lastSceneCommand&&<small>Command confirmation tracked from OBS Bridge</small>}</div>
    <div className="director31-cards">{cameras.map(c=><div key={c.id} className={`director31-camera ${effective(c).toLowerCase()}`}>
     <span>CAM {c.number}</span><strong>{c.name}</strong><b>{effective(c)==='PROGRAM'?'ON AIR':effective(c)==='PREVIEW'?'PREVIEW':effective(c)==='OFFLINE'?'DISCONNECTED':'IDLE'}</b>
@@ -178,8 +205,18 @@ export function DirectorPortal31(){
    <p>Live program video requires a separately deployed HTTPS WHEP relay, such as MediaMTX. The relay must authenticate the Supabase bearer token and restrict access to this production. OBS WebSocket cannot provide continuous video.</p>
    <form onSubmit={e=>void saveMedia(e)}><label>Protected WHEP endpoint
     <input type="url" placeholder={`https://relay.example.com/program-${production.id}/whep`} value={mediaUrl} onChange={e=>setMediaUrl(e.target.value)}/></label>
-    <button type="submit">Save verified relay endpoint</button></form>
-   <p>No public or unprotected OBS feed should be entered here.</p></section>}
+    <button type="submit">Save program endpoint</button></form>
+   <p>No public or unprotected OBS feed should be entered here.</p>
+   <h2>Director-only continuous camera previews</h2>
+   <p>Every camera requires an actual publisher to a private relay path. OBS WebSocket thumbnails cannot act as continuous live video. Only configured streams are shown.</p>
+   {cameras.map(c=><div key={c.id} className="director31-camera-media">
+    <label>CAM {c.number} · {c.name} HTTPS WHEP endpoint
+     <input type="url" placeholder={`https://relay.example.com/camera-${c.id}/whep`}
+      value={cameraMedia[c.id]||''} onChange={e=>setCameraMedia(old=>({...old,[c.id]:e.target.value}))}/></label>
+    <button type="button" disabled={mediaSaving} onClick={()=>void saveCameraMedia(c.id)}>Save camera endpoint</button>
+   </div>)}
+   <p>Configure authenticated MediaMTX publication and per-camera source feeds independently of tally settings. Camera pairing and OBS mapping records are preserved.</p>
+  </section>}
   </>}
   {cameraEditing!==undefined&&production&&<div className="director31-modal-bg" role="dialog" aria-modal="true"><form onSubmit={e=>void saveCamera(e)} className="director31-modal">
    <h2>{cameraEditing?'Edit camera assignment':'Add camera'}</h2><p>Preserves existing camera IDs and paired phone links.</p>
