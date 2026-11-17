@@ -8,6 +8,7 @@ import {Activity,AlertTriangle,ArrowRight,Camera,Check,ChevronDown,CircleHelp,Cl
  Radio,RefreshCw,Settings,Shield,Smartphone,Trash2,Wifi,WifiOff,X,Volume2,VolumeX} from 'lucide-react';
 import {freshness} from '@tally/shared';
 import {supabase,configured,unwrap} from './client';
+import {CrewPanel,HealthPanel} from './CrewTools';
 import type {CameraRow,CameraSnapshot,Production} from './client';
 
 type AuthInfo={user:User;role:string};
@@ -15,7 +16,7 @@ const relativeTime=(iso:string|null|undefined)=>iso?new Date(iso).toLocaleTimeSt
 const toError=(e:unknown)=>e instanceof Error?e.message:String(e);
 const buttonCopy=async(text:string)=>{await navigator.clipboard.writeText(text);};
 const stateClass=(state:string)=>`status-${state.toLowerCase()}`;
-const bumbiLogo=`${import.meta.env.BASE_URL}bumbi-logo-white.png`;
+const bumbiLogo=`${import.meta.env.BASE_URL}bumbi-logo.png`;
 function BrandCredit(){return <div className="bumbi-credit"><img src={bumbiLogo} alt="BUMBI logo"/><span>Developed by <strong>BUMBI Software Solutions</strong></span></div>;} 
 
 function useIdentity(){
@@ -57,7 +58,7 @@ function Login(){
 }
 const navItems=[['/dashboard','Overview',Monitor],['/cameras','Cameras',Camera],['/mapping','OBS mapping',Film],
  ['/productions','Productions',Radio],['/devices','Device access',Smartphone],['/events','Event history',Activity],
- ['/diagnostics','Diagnostics',Wifi],['/settings','Settings',Cog],['/help','Help',CircleHelp]] as const;
+ ['/diagnostics','Diagnostics',Wifi],['/crew','Crew operations',Mic2],['/talkback','Mobile talkback',Radio],['/settings','Settings',Cog],['/help','Help',CircleHelp]] as const;
 function StateBadge({state}:{state:string}){return <span className={`state-badge ${stateClass(state)}`}><span className="dot"/>{state==='PROGRAM'?'ON AIR':state==='PREVIEW'?'STANDBY':state==='OFFLINE'?'UNAVAILABLE':state}</span>;}
 function CameraCard({camera,production,onPair,onEdit}:{camera:CameraRow;production:Production;onPair:(c:CameraRow)=>void;onEdit:(c:CameraRow)=>void}){
  const state=freshness(production.last_bridge_at,production.obs_connected)?camera.tally_states?.state||'OFFLINE':'OFFLINE';
@@ -252,6 +253,7 @@ function Director({auth}:{auth:AuthInfo}){
  <div className="metric green"><span>ON PREVIEW</span><strong>{preview.toString().padStart(2,'0')}</strong><Eye size={22}/></div>
  <div className="metric blue"><span>ONLINE DEVICES</span><strong>{activeDevices.toString().padStart(2,'0')}</strong><Smartphone size={22}/></div></div>
  <OBSStatsPanel production={production} clock={clock}/>
+ <HealthPanel stats={production.obs_stats as Record<string,unknown>|undefined} connected={good}/>
  <div className="section-heading"><div><span className="eyebrow">REALTIME TALLY MONITORING</span><h2>Camera lineup <span className="muted">({cameras.length})</span></h2></div><div className="heading-actions"><ActionButton secondary onClick={()=>void refresh()}><RefreshCw size={16}/> Refresh</ActionButton><ActionButton onClick={()=>setEditor(null)}><Plus size={17}/> Camera</ActionButton></div></div>
  <div className="camera-grid">{cameras.map(c=><CameraCard key={c.id} camera={c} production={production} onPair={setPairing} onEdit={setEditor}/>)}</div>
  {!cameras.length&&<div className="empty"><Camera/><h3>No cameras configured</h3><p>Add a camera, then map it to an OBS scene or source.</p></div>}
@@ -282,6 +284,8 @@ function Director({auth}:{auth:AuthInfo}){
  <Diagnostic title="OBS streaming" value={good?(production.streaming?'ACTIVE':'STOPPED'):'UNKNOWN'} note="Independent of Program selection"/><Diagnostic title="OBS recording" value={good?(production.recording?'ACTIVE':'STOPPED'):'UNKNOWN'} note="Independent of Program selection"/></div>
  <OBSStatsPanel production={production} clock={clock}/>
  <div className="section-heading"><h2>Production data</h2></div><p className="subtext">Streaming indicators are informational. A camera can be on Program even when streaming is stopped.</p></>}
+ {production&&page==='crew'&&<CrewPanel productionId={production.id} director scenes={(production.obs_sources||[]).filter(x=>x.kind==='SCENE').map(x=>x.name)}/>}
+ {production&&page==='talkback'&&<CrewPanel productionId={production.id} director scenes={(production.obs_sources||[]).filter(x=>x.kind==='SCENE').map(x=>x.name)} initialTab="talkback"/>}
  {production&&page==='settings'&&<SettingsPage auth={auth} production={production} showNotice={setNotice}/>}
  {page==='help'&&<HelpPage/>}
  <footer className="app-footer"><span>OBS TALLY PRO © 2026</span><BrandCredit/></footer>
@@ -351,8 +355,9 @@ function TallyPage(){
  const [error,setError]=useState('');const [clock,setClock]=useState(Date.now());
  const [settings,setSettings]=useState(false);const [sound,setSound]=useState(localStorage.getItem('tally-sound')==='yes');
  const [vibration,setVibration]=useState(localStorage.getItem('tally-vibration')==='yes');
- const [wake,setWake]=useState(false);const lastState=useRef('');
+ const [wake,setWake]=useState(false);const [crewOpen,setCrewOpen]=useState(false);const [crewProductionId,setCrewProductionId]=useState('');const lastState=useRef('');
  const wakeRef=useRef<{release:()=>Promise<void>}|null>(null);
+ useEffect(()=>{let alive=true;if(cameraId)void supabase.rpc('production_for_paired_camera',{cid:cameraId}).then(r=>{if(alive&& !r.error&&typeof r.data==='string')setCrewProductionId(r.data);});return()=>{alive=false;};},[cameraId]);
  const ready=Boolean(snapshot&&transport&&navigator.onLine&&freshness(snapshot.last_bridge_at,snapshot.obs_connected,clock));
  const state=ready?(snapshot!.enabled?snapshot!.state:'IDLE'):(reconnecting&&navigator.onLine?'RECONNECTING':'OFFLINE');
  const refresh=useCallback(async()=>{
@@ -411,7 +416,7 @@ function TallyPage(){
  const fullscreen=async()=>{try{if(document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();else setError('Use Add to Home Screen for an app-like fullscreen display on iPhone.');}catch{setError('Fullscreen permission denied.');}};
  const screen=state==='PROGRAM'?'ON AIR':state==='PREVIEW'?'STANDBY':state==='IDLE'?'IDLE':state==='RECONNECTING'?'RECONNECTING':'SIGNAL UNAVAILABLE';
  return <div className={`tally-screen ${stateClass(state)}`}>
- <div className="tally-top"><span className="tally-brand"><img className="bumbi-tally-logo" src={bumbiLogo} alt="BUMBI Software Solutions"/> OBS TALLY PRO</span><button aria-label="Camera settings" className="tally-settings" onClick={()=>setSettings(!settings)}><Settings size={23}/></button></div>
+ <div className="tally-top"><span className="tally-brand"><img className="bumbi-tally-logo" src={bumbiLogo} alt="BUMBI Software Solutions"/> OBS TALLY PRO</span><button className="crew-crew-open" onClick={()=>setCrewOpen(true)}>MULTIVIEW + CREW</button><button aria-label="Camera settings" className="tally-settings" onClick={()=>setSettings(!settings)}><Settings size={23}/></button></div>
  <div className="tally-center"><div className="tally-ring"><span/></div><div className="tally-headline">{screen}</div>
  <div className="tally-camera">{snapshot?`CAM ${String(snapshot.number).padStart(2,'0')}`:'CAMERA'}</div>
  <div className="tally-state-label">{state==='PROGRAM'?'PROGRAM':state==='PREVIEW'?'PREVIEW':state==='IDLE'?snapshot?.name||'NOT SELECTED':state==='RECONNECTING'?'CONNECTION INTERRUPTED':'OBS CONNECTION LOST'}</div>
@@ -425,6 +430,7 @@ function TallyPage(){
  <button onClick={()=>void refresh()}><RefreshCw size={18}/> Refresh trusted state</button>
  {error&&<p className="error small">{error}</p>}
  <p>Foreground use is recommended. Browser vibration, fullscreen, and wake lock support varies by device.</p></div>}
+ {crewOpen&&crewProductionId&&<div className="crew-mobile-view"><div className="crew-own-status"><strong>CAM {snapshot?.number} · {screen}</strong><span>Your personal tally remains visible</span><button onClick={()=>setCrewOpen(false)}>Return to tally</button></div><CrewPanel productionId={crewProductionId} director={false} ownCameraId={cameraId}/></div>}
  </div>;
 }
 function Dock(){

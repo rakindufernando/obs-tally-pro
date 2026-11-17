@@ -53,6 +53,21 @@ export class OBSConnector {
      this.requestSync();
    },20_000);
  }
+ async screenshot(sourceName:string):Promise<string|null>{
+   if(!this.connected||!sourceName||sourceName.length>150)return null;
+   try{
+     const response=await this.obs.call('GetSourceScreenshot',{sourceName,imageFormat:'jpg',imageWidth:512,imageCompressionQuality:38});
+     const result=response.imageData;
+     if(typeof result!=='string'||!/^data:image\/jpeg;base64,/.test(result)||result.length>195000)return null;
+     return result.slice('data:image/jpeg;base64,'.length);
+   }catch(e){console.warn('OBS preview unavailable',e instanceof Error?e.message:'unknown');return null;}
+ }
+ async switchScene(name:string):Promise<void>{
+   if(!this.connected)throw new Error('OBS disconnected');
+   if(!name||name.length>150||!this.snapshot.scenes[name])throw new Error('OBS scene not found');
+   await this.obs.call('SetCurrentProgramScene',{sceneName:name});
+   this.requestSync();
+ }
  stop(){this.active=false;if(this.timer)clearInterval(this.timer);void this.obs.disconnect();}
  getSnapshot(){return this.snapshot;}
  private onDisconnected(){

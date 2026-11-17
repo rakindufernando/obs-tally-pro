@@ -79,6 +79,45 @@ Deno.serve(async (req) => {
       if (error) return fail('Telemetry unavailable', 500);
       return respond({ok:true});
     }
+    if (action === 'preview') {
+      const {data:identity,error:authError}=await admin.rpc('bridge_configuration',{p_token_hash});
+      if(authError||typeof identity?.production_id!=='string')return fail('Unauthorized bridge',401);
+      const cid=safeString(body.camera_id,64);
+      const jpeg=safeString(body.image_base64,205000);
+      if(!cid||!jpeg||!/^[a-zA-Z0-9+/]+={0,2}$/.test(jpeg)||jpeg.length>200000)return fail('Invalid JPEG preview',400);
+      const assigned=(identity.cameras||[]).some((c:{id:string})=>c.id===cid);
+      if(!assigned)return fail('Camera does not belong to this bridge',403);
+      const bytes=Uint8Array.from(atob(jpeg),c=>c.charCodeAt(0));
+      if(bytes.length>150000||bytes[0]!==255||bytes[1]!==216||bytes[2]!==255)return fail('Invalid JPEG image',400);
+      const path=identity.production_id+'/'+cid+'.jpg';
+      const saved=await admin.storage.from('tally-private-previews').upload(path,bytes,{upsert:true,contentType:'image/jpeg',cacheControl:'5'});
+      if(saved.error)return fail('Private preview storage error',503);
+      const meta=await admin.from('camera_preview_assets').upsert({camera_id:cid,production_id:identity.production_id,updated_at:new Date().toISOString(),size_bytes:bytes.length},{onConflict:'camera_id'});
+      return meta.error?fail('Preview metadata error',503):respond({ok:true});
+    }
+    if(action==='commands'){
+      const {data:identity,error:authError}=await admin.rpc('bridge_configuration',{p_token_hash});
+      if(authError||typeof identity?.production_id!=='string')return fail('Unauthorized bridge',401);
+      const {data:pending,error}=await admin.from('obs_scene_commands').select('id,scene_name,created_at')
+       .eq('production_id',identity.production_id).eq('status','pending').gte('created_at',new Date(Date.now()-30000).toISOString()).order('created_at').limit(3);
+      if(error)return fail('Scene command sync error',503);
+      const commands=[];
+      for(const row of pending||[]){
+        const updated=await admin.from('obs_scene_commands').update({status:'delivered'}).eq('id',row.id).eq('status','pending').select('id,scene_name').maybeSingle();
+        if(updated.data)commands.push(updated.data);
+      }
+      return respond({commands});
+    }
+    if(action==='command-result'){
+      const {data:identity,error:authError}=await admin.rpc('bridge_configuration',{p_token_hash});
+      if(authError||typeof identity?.production_id!=='string')return fail('Unauthorized bridge',401);
+      const id=safeString(body.id,64);
+      if(!id||!/^[0-9a-f-]{36}$/.test(id))return fail('Invalid command',400);
+      const result=await admin.from('obs_scene_commands').update({status:body.success===true?'completed':'failed',
+       result_message:safeString(body.message,200)||'',processed_at:new Date().toISOString()})
+       .eq('id',id).eq('production_id',identity.production_id).eq('status','delivered');
+      return result.error?fail('Command result unavailable',503):respond({ok:true});
+    }
     if (action === 'publish') {
       if (!Number.isSafeInteger(body.sequence) || body.sequence <= 0 || typeof body.obs_connected !== 'boolean'
         || !Array.isArray(body.states) || body.states.length > 512

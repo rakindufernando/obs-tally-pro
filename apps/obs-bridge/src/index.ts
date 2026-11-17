@@ -22,6 +22,31 @@ async function main(){
 
  const obs=new OBSConnector(process.env.OBS_URL||'ws://127.0.0.1:4455',process.env.OBS_PASSWORD||'',s=>cloud.publish(s));
  obs.start();
+ // Low-bandwidth JPEG still previews of mapped sources, not continuous video.
+ let previewIndex=0;let previewBusy=false;
+ const previewTimer=setInterval(async()=>{
+   if(previewBusy||!obs.getSnapshot().connected)return;
+   const targets=cloud.getPreviewTargets();if(!targets.length)return;
+   previewBusy=true;
+   try{
+     const target=targets[previewIndex++%targets.length];
+     const image=await obs.screenshot(target.source);
+     if(image)await cloud.uploadPreview(target.camera_id,image);
+   }catch(e){console.warn('OBS preview delivery',e instanceof Error?e.message:'unknown');}
+   finally{previewBusy=false;}
+ },11000);
+ let sceneControlBusy=false;
+ const sceneControlTimer=setInterval(async()=>{
+   if(sceneControlBusy||!obs.getSnapshot().connected)return;
+   sceneControlBusy=true;
+   try{
+     for(const command of await cloud.fetchCommands()){
+       try{await obs.switchScene(command.scene_name);await cloud.commandResult(command.id,true,'Scene switched');}
+       catch(e){await cloud.commandResult(command.id,false,e instanceof Error?e.message:'OBS scene switch failed');}
+     }
+   }catch(e){console.warn('Director scene control unavailable',e instanceof Error?e.message:'unknown');}
+   finally{sceneControlBusy=false;}
+ },3000);
  // One authoritative OBS status poll feeds the native desktop statistics and cloud dashboard.
  // The file contains no credentials and is only an ephemeral local status snapshot.
  const statusPath=process.env.BRIDGE_STATUS_PATH;
@@ -48,7 +73,7 @@ async function main(){
  const configTimer=setInterval(async()=>{try{await cloud.refreshConfig();}catch(e){console.error('Bridge config sync',e instanceof Error?e.message:e);}},15000);
  const heartbeatTimer=setInterval(async()=>{await cloud.heartbeat();},10000);
  console.log(`OBS TALLY PRO bridge started. Cameras ${cloud.getCameraCount()}. No inbound ports opened.`);
- const stop=()=>{clearInterval(configTimer);clearInterval(heartbeatTimer);clearInterval(statsTimer);obs.stop();process.exit(0);};
+ const stop=()=>{clearInterval(previewTimer);clearInterval(sceneControlTimer);clearInterval(configTimer);clearInterval(heartbeatTimer);clearInterval(statsTimer);obs.stop();process.exit(0);};
  process.once('SIGINT',stop);
  process.once('SIGTERM',stop);
 }
