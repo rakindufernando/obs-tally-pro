@@ -39,7 +39,7 @@ export function ProgramFeed31({client,productionId,compact=true,cameraId}:{clien
  useEffect(()=>{
   let alive=true;const controller=new AbortController();let sessionUrl='';let token='';
   let reconnectTimer:ReturnType<typeof setTimeout>|undefined;let stalledTimer:ReturnType<typeof setInterval>|undefined;
-  const reconnect=()=>{if(alive&&navigator.onLine&&document.visibilityState==='visible')reconnectTimer=setTimeout(()=>{if(alive)setAttempt(n=>n+1);},3500);};
+  const reconnect=()=>{if(!reconnectTimer&&alive&&navigator.onLine&&document.visibilityState==='visible')reconnectTimer=setTimeout(()=>{reconnectTimer=undefined;if(alive)setAttempt(n=>n+1);},3500);};
   setConnected(false);setPlaying(false);setError('');
   if(!access.available||!access.url)return;
   const pc=new RTCPeerConnection();currentPc.current=pc;
@@ -63,6 +63,8 @@ export function ProgramFeed31({client,productionId,compact=true,cameraId}:{clien
   };
   const begin=async()=>{
    try{
+    const ice=await client.functions.invoke('crew-ice',{body:{production_id:productionId}});
+    if(!ice.error&&Array.isArray(ice.data?.iceServers))pc.setConfiguration({iceServers:ice.data.iceServers});
     const {data:{session}}=await client.auth.getSession();
     if(!session)throw new Error('Sign in to view the private OBS Program stream');
     token=session.access_token;
@@ -108,7 +110,7 @@ export function ProgramFeed31({client,productionId,compact=true,cameraId}:{clien
  }catch(e){setError(errText(e));}};
  return <section className={`program31 ${compact?'program31-compact':''}`} aria-label={label}>
   <div className="program31-head"><strong>{label}</strong><span className={connected?'program31-online':'program31-offline'}>{connected?'LIVE VIDEO':'VIDEO UNAVAILABLE'}</span></div>
-  {access.available?<div className="program31-player"><video ref={video} autoPlay muted={!unmuted} playsInline controls={false}/>
+  {access.available?<div className="program31-player"><video ref={video} autoPlay muted={!unmuted||Boolean(cameraId)} playsInline controls preload="none"/>
    {!playing&&<div className="program31-wait">{error||'Connecting to the authenticated program video relay'}</div>}</div>
   :<div className="program31-unavailable"><span>◉</span><strong>Actual video is unavailable</strong><p>{access.reason||'OBS stream is unavailable'}</p></div>}
   <div className="program31-actions"><button onClick={retry} type="button">Reconnect video</button>
