@@ -39,7 +39,7 @@ function Preview({camera,productionId,allowed}:{camera:Camera;productionId:strin
  const [error,setError]=useState('');
  useEffect(()=>{
   let alive=true;
-  if(!allowed||!camera.preview_at){setUrl(null);return;}
+  if(!allowed||!camera.preview_at||Date.now()-new Date(camera.preview_at).getTime()>90000){setUrl(null);return;}
   let refreshTimer:ReturnType<typeof setInterval>;
   async function load(){
    const path=`${productionId}/${camera.id}.jpg`;

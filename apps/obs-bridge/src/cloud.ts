@@ -67,7 +67,8 @@ export class CloudBridge {
  getCameraCount(){return this.cameras.length;}
  getPreviewTargets(){
    return this.cameras.filter(c=>c.enabled).flatMap(c=>{
-     const r=c.mappings.find(m=>!m.excluded&&m.name&&['SOURCE','SCENE'].includes(m.kind));
+     // Scene mappings can contain other people's cameras; preview only the explicit mapped source.
+     const r=c.mappings.find(m=>!m.excluded&&m.name&&m.kind==='SOURCE');
      return r?[{camera_id:c.id,source:r.name}]:[];
    });
  }
