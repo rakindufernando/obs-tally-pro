@@ -107,7 +107,7 @@ function CrewMultiview({productionId,ownCameraId,scenes}:{productionId:string;ow
 function CrewChat({productionId,director,ownCameraId,cameras}:{productionId:string;director:boolean;ownCameraId?:string;cameras:Camera[]}){
  const [msgs,setMsgs]=useState<Message[]>([]);
  const [message,setMessage]=useState('');
- const [target,setTarget]=useState('');
+ const [targets,setTargets]=useState<string[]>([]);
  const [error,setError]=useState('');
  const [busy,setBusy]=useState(false);
  const [readCount,setReadCount]=useState<Record<string,number>>({});
@@ -134,13 +134,18 @@ function CrewChat({productionId,director,ownCameraId,cameras}:{productionId:stri
  const send=async(content=message,quick=false)=>{
   const txt=content.trim();if(!txt)return;
   setBusy(true);setError('');
-  const r=await supabase.rpc('send_operator_message',{pid:productionId,recipient:director?'crew':'directors',targets:director&&target?[target]:[],message_text:txt,quick});
+  const r=await supabase.rpc('send_operator_message',{pid:productionId,recipient:director?'crew':'directors',targets:director?targets:[],message_text:txt,quick});
   if(r.error)setError(r.error.message);
   else{setMessage('');void refresh();}
   setBusy(false);
  };
  return <div className="crew-panel"><div className="crew-top"><div><h2>Operator communication</h2><p>Private, authorized text commands and crew replies. Messages retained for 14 days by access policy.</p></div><button onClick={()=>void refresh()}>Refresh</button></div>
-  {director&&<label className="crew-target">Recipient <select value={target} onChange={e=>setTarget(e.target.value)}><option value="">All cameramen (broadcast)</option>{cameras.map(c=><option key={c.id} value={c.id}>{c.name} · CAM {c.number}</option>)}</select></label>}
+  {director&&<div className="crew-target"><strong>Message recipients</strong><p>{targets.length?targets.length===1?'Individual camera message':`Group message to ${targets.length} cameras`:'Broadcast to all paired cameramen'}</p>
+   <select multiple aria-label="Select cameras for private messages" size={Math.min(6,Math.max(2,cameras.length))}
+    value={targets} onChange={e=>setTargets(Array.from(e.target.selectedOptions,option=>option.value))}>
+   {cameras.map(c=><option key={c.id} value={c.id}>{c.name} · CAM {c.number}</option>)}</select>
+   <button onClick={()=>setTargets([])}>Broadcast to all</button><small>Hold Ctrl to select multiple cameras. No selection means broadcast.</small>
+ </div>}
   <div className="crew-quick">{(director?['STANDBY','READY CAMERA','CHECK AUDIO','GO LIVE SOON','THANK YOU']:['READY','ACKNOWLEDGED','TECHNICAL ISSUE','PLEASE REPEAT']).map(cmd=><button key={cmd} disabled={busy} onClick={()=>void send(cmd,true)}>{cmd}</button>)}</div>
   <div className="crew-message-list" role="log" aria-live="polite">{msgs.map(m=><div key={m.id} className={`crew-message ${m.sender_id===me?'mine':''}`}><div><strong>{m.sender_id===me?'You':m.sender_kind==='director'?'Director':'Cameraman'}</strong><span>{fmt(m.created_at)}{director&&m.sender_id===me?` · ${readCount[m.id]||0} read`:''}</span></div><p>{m.body}</p></div>)}</div>
   {!msgs.length&&<p className="crew-empty">No messages received yet.</p>}
