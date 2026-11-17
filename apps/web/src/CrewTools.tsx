@@ -2,6 +2,7 @@ import {useCallback,useEffect,useRef,useState,useContext,createContext} from 're
 import type {ReactNode} from 'react';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {supabase} from './client';
+import {ProgramFeed31} from './ProgramFeed31';
 const CrewClientContext31=createContext<SupabaseClient>(supabase);
 export function CrewClientProvider31({client,children}:{client:SupabaseClient;children:ReactNode}){return <CrewClientContext31.Provider value={client}>{children}</CrewClientContext31.Provider>;}
 
@@ -10,7 +11,6 @@ type View={production_id:string;production_name:string;bridge_online:boolean;las
 type Message={id:string;sender_id:string;sender_kind:string;audience:string;target_camera_ids:string[];body:string;quick_command:boolean;created_at:string};
 const errorText=(e:unknown)=>e instanceof Error?e.message:String(e);
 const fmt=(v:string)=>new Date(v).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-const canPreview=(cam:Camera,own?:string)=>!own||cam.id===own;
 const cls=(s:string)=>s==='PROGRAM'?'live':s==='PREVIEW'?'standby':s==='IDLE'?'idle':'offline';
 
 function useCrewView(productionId:string,enabled=true){
@@ -40,29 +40,6 @@ function useCrewView(productionId:string,enabled=true){
  return {data,error,reload};
 }
 
-function Preview({camera,productionId,allowed}:{camera:Camera;productionId:string;allowed:boolean}){
- const supabase=useContext(CrewClientContext31);
- const [url,setUrl]=useState<string|null>(null);
- const [error,setError]=useState('');
- useEffect(()=>{
-  let alive=true;
-  if(!allowed||!camera.preview_at||Date.now()-new Date(camera.preview_at).getTime()>90000){setUrl(null);return;}
-  let refreshTimer:ReturnType<typeof setInterval>;
-  async function load(){
-   const path=`${productionId}/${camera.id}.jpg`;
-   const r=await supabase.storage.from('tally-private-previews').createSignedUrl(path,35);
-   if(!alive)return;
-   if(r.error){setUrl(null);setError(r.error.message);return;}
-   setUrl(r.data?.signedUrl||null);setError('');
-  }
-  void load();refreshTimer=setInterval(()=>void load(),18000);
-  return()=>{alive=false;clearInterval(refreshTimer);};
- },[allowed,camera.id,camera.preview_at,productionId]);
- if(!allowed)return <div className="crew-preview-empty">Private camera preview</div>;
- if(!url)return <div className="crew-preview-empty">{error?'Preview unavailable':'Awaiting authenticated OBS thumbnail'}</div>;
- return <img className="crew-preview" src={url} alt={`OBS preview ${camera.name}`} loading="lazy" decoding="async" onError={()=>setUrl(null)}/>;
-}
-
 function CrewMultiview({productionId,ownCameraId,scenes}:{productionId:string;ownCameraId?:string;scenes?:string[]}){
  const supabase=useContext(CrewClientContext31);
  const {data,error,reload}=useCrewView(productionId);
@@ -89,7 +66,7 @@ function CrewMultiview({productionId,ownCameraId,scenes}:{productionId:string;ow
  };
  useEffect(()=>{const fn=()=>setFullscreen(Boolean(document.fullscreenElement));document.addEventListener('fullscreenchange',fn);return()=>document.removeEventListener('fullscreenchange',fn);},[]);
  return <div className="crew-panel" ref={ref}>
-  <div className="crew-top"><div><h2>Production multiview</h2><p>Live tally states with bandwidth-limited private OBS thumbnails. Previews are periodic still frames, not continuous video.</p></div>
+  <div className="crew-top"><div><h2>Production multiview</h2><p>Authenticated continuous camera streams, not OBS screenshots. Unpublished cameras are shown as unavailable.</p></div>
    <div className="crew-actions"><label>Layout <select value={layout} onChange={e=>setLayout(e.target.value)}><option value="2">2 cameras</option><option value="4">4 cameras</option><option value="9">9 cameras</option><option value="custom">Custom 16</option></select></label>
    <button onClick={()=>void reload()}>Refresh</button><button onClick={()=>void enterFullscreen()}>{fullscreen?'Exit fullscreen':'Fullscreen'}</button></div></div>
   {error&&<p className="crew-error" role="alert">{error}</p>}
@@ -100,7 +77,7 @@ function CrewMultiview({productionId,ownCameraId,scenes}:{productionId:string;ow
   <div className="crew-cam-grid" style={{gridTemplateColumns:`repeat(${layout==='2'?2:layout==='9'?3:layout==='custom'?4:2}, minmax(0,1fr))`}}>
    {display.map(cam=><div key={cam.id} className={`crew-tile crew-${cls(cam.state)} ${cam.id===ownCameraId?'crew-own':''}`}>
      <div className="crew-tile-meta"><strong>CAM {String(cam.number).padStart(2,'0')} · {cam.name}</strong><span className={`crew-status ${cls(cam.state)}`}>{cam.state==='PROGRAM'?'LIVE':cam.state==='PREVIEW'?'PREVIEW':cam.state==='OFFLINE'?'DISCONNECTED':'IDLE'}</span></div>
-     <div className="crew-video"><Preview camera={cam} productionId={productionId} allowed={canPreview(cam,ownCameraId)&&data?.bridge_online===true}/></div>
+     <div className="crew-video"><ProgramFeed31 client={supabase} productionId={productionId} cameraId={cam.id} compact/></div>
      {cam.id===ownCameraId&&<strong className="crew-identity">YOUR CAMERA</strong>}
    </div>)}
   </div>
