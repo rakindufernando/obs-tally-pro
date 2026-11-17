@@ -35,10 +35,10 @@ export function TallyMessages31({client,productionId,cameraId}:{client:SupabaseC
   void client.auth.getSession().then(({data})=>{
    if(!mounted.current||!data.session)return;
    client.realtime.setAuth(data.session.access_token);
-   channel=client.channel(`tally-messages31:${productionId}:${cameraId}`,{config:{private:true}})
+   channel=client.channel(`ops:${productionId}`,{config:{private:true}})
     .on('broadcast',{event:'message'},()=>void load())
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'operator_messages',filter:`production_id=eq.${productionId}`},()=>void load())
-    .subscribe();
+    .subscribe(status=>{if(status==='CHANNEL_ERROR'||status==='TIMED_OUT')setError('Realtime messages interrupted. Automatic fallback remains active.');});
   });
   void load();const t=setInterval(()=>void load(),5500);
   const online=()=>void load();const resume=()=>{if(document.visibilityState==='visible')void load();};
