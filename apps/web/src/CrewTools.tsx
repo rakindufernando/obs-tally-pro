@@ -161,6 +161,8 @@ function CrewTalkback({productionId,director,ownCameraId}:{productionId:string;d
  const [micReady,setMicReady]=useState(false);
  const [holding,setHolding]=useState(false);
  const [connected,setConnected]=useState(false);
+ const [incoming,setIncoming]=useState<Signal|null>(null);
+ const incomingRef=useRef<Signal|null>(null);
  const local=useRef<MediaStream|null>(null);
  const pc=useRef<RTCPeerConnection|null>(null);
  const other=useRef('');
@@ -177,7 +179,7 @@ function CrewTalkback({productionId,director,ownCameraId}:{productionId:string;d
  },[productionId]);
  const close=useCallback((remote=false)=>{
   if(!remote&&other.current&&session.current)void send(other.current,session.current,'hangup',{});
-  pc.current?.close();pc.current=null;other.current='';session.current='';pendingIce.current=[];
+  pc.current?.close();pc.current=null;other.current='';session.current='';pendingIce.current=[];incomingRef.current=null;setIncoming(null);
   local.current?.getTracks().forEach(t=>t.stop());local.current=null;setMicReady(false);setHolding(false);setConnected(false);setStatus('Not connected');
  },[send]);
  const makePC=useCallback((to:string,sid:string)=>{
@@ -216,15 +218,18 @@ function CrewTalkback({productionId,director,ownCameraId}:{productionId:string;d
  const receive=useCallback(async(s:Signal)=>{
   try{
    if(s.kind==='offer'){
-    if(pc.current) return;
-    const peer=makePC(s.sender_id,s.call_id);
+    if(pc.current||incomingRef.current)return;
     const desc=s.payload.sdp as RTCSessionDescriptionInit|undefined;
     if(!desc||desc.type!=='offer')return;
-    await peer.setRemoteDescription(desc);
-    const answer=await peer.createAnswer();await peer.setLocalDescription(answer);
-    await send(s.sender_id,s.call_id,'answer',{sdp:peer.localDescription?.toJSON()});
-    setStatus('Incoming talkback. Tap Play audio if needed.');
-    await flushIce();
+    incomingRef.current=s;setIncoming(s);
+    setStatus('Incoming call. Accept explicitly to start WebRTC and request microphone permission.');
+   }else if(incomingRef.current && s.call_id===incomingRef.current.call_id && s.sender_id===incomingRef.current.sender_id){
+    if(s.kind==='ice'){
+      const candidate=s.payload.candidate as RTCIceCandidateInit|undefined;
+      if(candidate)pendingIce.current.push(candidate);
+    } else if(s.kind==='hangup'){
+      incomingRef.current=null;setIncoming(null);setStatus('Incoming call cancelled');
+    }
    }else if(s.call_id===session.current&&s.sender_id===other.current){
     const peer=pc.current;if(!peer)return;
     if(s.kind==='answer'){const desc=s.payload.sdp as RTCSessionDescriptionInit|undefined;if(desc?.type==='answer')await peer.setRemoteDescription(desc);await flushIce();}
@@ -258,6 +263,31 @@ function CrewTalkback({productionId,director,ownCameraId}:{productionId:string;d
   const id=setInterval(()=>void poll(),1200);void poll();
   return()=>{active.current=false;clearInterval(id);close(true);};
  },[productionId,director,receive,close]);
+ const accept=async()=>{
+  const offer=incomingRef.current;
+  if(!offer)return;
+  setError('');
+  try{
+   // Permission is requested only from the receiving user's explicit click.
+   const stream=await ensureMic();
+   const peer=makePC(offer.sender_id,offer.call_id);
+   const description=offer.payload.sdp as RTCSessionDescriptionInit|undefined;
+   if(!description||description.type!=='offer')throw new Error('Invalid incoming offer');
+   await peer.setRemoteDescription(description);
+   for(const track of stream.getAudioTracks())peer.addTrack(track,stream);
+   const answer=await peer.createAnswer();
+   await peer.setLocalDescription(answer);
+   await send(offer.sender_id,offer.call_id,'answer',{sdp:peer.localDescription?.toJSON()});
+   incomingRef.current=null;setIncoming(null);
+   setStatus('Audio connection requested. Hold to talk once connected.');
+   await flushIce();
+  }catch(e){setError('Unable to accept talkback. '+errorText(e));close(true);}
+ };
+ const reject=()=>{
+  const offer=incomingRef.current;
+  if(offer)void send(offer.sender_id,offer.call_id,'hangup',{}).catch(e=>setError(errorText(e)));
+  incomingRef.current=null;setIncoming(null);setStatus('Call declined');
+ };
  const push=async()=>{
   try{
    const stream=await ensureMic();
@@ -273,6 +303,7 @@ function CrewTalkback({productionId,director,ownCameraId}:{productionId:string;d
  <p className="crew-service">Audio stays peer-to-peer where networks allow. Different mobile networks may require a separately configured TURN relay. No relay is configured in this version.</p>
  <div className="crew-talkback-row"><label>Call recipient <select value={target} onChange={e=>setTarget(e.target.value)} disabled={!!pc.current}><option value="">Select an authorized device</option>{recipients.map(p=><option key={p.id} value={p.id}>{p.label}</option>)}</select></label>
   <button onClick={()=>void call(target)} disabled={!target||Boolean(pc.current)}>Start secure call</button><button onClick={()=>close()} disabled={!pc.current}>End call</button></div>
+ {incoming&&<div className="crew-incoming"><strong>Incoming encrypted talkback call</strong><p>Accepting requests this phone's microphone. It stays muted until you hold the talk button.</p><button onClick={()=>void accept()}>Accept call</button><button onClick={reject}>Decline</button></div>}
  <p className={`crew-service ${connected?'good':'bad'}`}>Status · {status}</p>
  <button className={`crew-ptt ${holding?'active':''}`} disabled={!connected} onPointerDown={e=>{e.preventDefault();void push();}} onPointerUp={release} onPointerLeave={release} onPointerCancel={release} onKeyDown={e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();void push();}}} onKeyUp={release}> {holding?'MICROPHONE LIVE · RELEASE TO MUTE':'HOLD TO TALK'} </button>
  <button onClick={()=>void speaker.current?.play().catch(e=>setError(errorText(e)))}>Play incoming audio</button>

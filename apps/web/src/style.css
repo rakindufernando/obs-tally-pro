@@ -163,3 +163,4 @@ body{background:#07090e}
 @media(max-width:800px){.crew-panel,.crew-health{padding:13px}.crew-cam-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:9px}.crew-tile-meta{flex-direction:column;align-items:flex-start}.crew-health-charts{grid-template-columns:1fr}.crew-preview-empty{font-size:10px}.crew-top h2{font-size:18px}}
 @media(max-width:420px){.crew-cam-grid{grid-template-columns:1fr!important}.crew-top{flex-direction:column}.crew-message{max-width:96%}}
 @media(prefers-reduced-motion:reduce){.crew-shell *{animation:none!important;transition:none!important}}
+.crew-incoming{background:#192f30;border:1px solid #54dfba;padding:15px;border-radius:13px;margin:12px 0}.crew-incoming button{margin-right:12px;background:#245a4c}
