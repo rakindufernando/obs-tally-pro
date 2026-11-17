@@ -14,7 +14,7 @@ export type Production={id:string;name:string;obs_connected:boolean;studio_mode:
  obs_sources?:{kind:'SCENE'|'SOURCE';name:string;uuid:string|null}[];obs_stats_at?:string|null;
  obs_stats?:{cpu_pct?:number;fps?:number;memory_mb?:number;disk_gb?:number;render_ms?:number;
  render_skipped?:number;render_total?:number;output_skipped?:number;output_total?:number;
- stream?:{active:boolean;duration_ms:number;bytes:number;congestion:number;skipped_frames:number;total_frames:number};
+ stream?:{active:boolean;duration_ms:number;bytes:number;bitrate_kbps?:number;congestion:number;skipped_frames:number;total_frames:number};
  record?:{active:boolean;paused:boolean;duration_ms:number;bytes:number}}};
 export type CameraSnapshot={camera_id:string;name:string;number:number;enabled:boolean;channel_nonce:string;state:string;version:number;
  state_at:string;last_bridge_at:string|null;obs_connected:boolean;studio_mode:boolean;streaming:boolean;recording:boolean;production_name:string};

@@ -37,3 +37,5 @@ An independent public installer hosting service has **not yet been set up** thro
 Always verify new migrations and operator RLS against a director session, a paired cameraman session, a revoked cameraman session, and an unauthenticated session. Avoid publishing private camera previews. The React builds, Windows installer, WebRTC cross-network calls, OBS source captures, and multiple camera load tests are separate checks. Automated checks do not substitute for actual hardware/network tests.
 
 To deploy only the current source repository, use `.github/workflows/deploy.yml`. For the Windows installer use `.github/workflows/bumbi-windows-installer.yml`. No installer binary is committed to the repository.
+## Retention job
+The production database schedules an hourly cleanup through Supabase Cron. It deletes RTC signaling rows older than 15 minutes, operator messages older than 14 days and remote scene-command audit rows older than 24 hours. Existing pairing records are untouched.

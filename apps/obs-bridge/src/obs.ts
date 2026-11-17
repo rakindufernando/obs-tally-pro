@@ -14,6 +14,7 @@ const readSceneName=(value:unknown,legacyKey:'currentProgramSceneName'|'currentP
 const wait=(ms:number)=>new Promise(r=>setTimeout(r,ms));
 export class OBSConnector {
  private obs=new OBSWebSocket();
+ private lastStreamSample:{bytes:number;at:number;duration:number}|null=null;
  private connected=false;
  private active=true;
  private reconnectAttempts=0;
@@ -141,7 +142,7 @@ export class OBSConnector {
      put('SCENE',name,snapshot.sceneUuids[name]);walk(items,0);
    }
    const stats:Record<string,number>={};
-   const stream:Record<string,number|boolean>={active:false,duration_ms:0,bytes:0,congestion:0,skipped_frames:0,total_frames:0};
+   const stream:Record<string,number|boolean>={active:false,duration_ms:0,bytes:0,bitrate_kbps:0,congestion:0,skipped_frames:0,total_frames:0};
    const record:Record<string,number|boolean>={active:false,duration_ms:0,bytes:0,paused:false};
    if(this.connected){
      const [st,ss,rs]=await Promise.allSettled([this.obs.call('GetStats'),this.obs.call('GetStreamStatus'),this.obs.call('GetRecordStatus')]);
@@ -159,6 +160,12 @@ export class OBSConnector {
          stream.active=d.outputActive===true;stream.duration_ms=num(d.outputDuration);
          stream.bytes=num(d.outputBytes);stream.congestion=num(d.outputCongestion);
          stream.skipped_frames=num(d.outputSkippedFrames);stream.total_frames=num(d.outputTotalFrames);
+         const stamp=Date.now(), bytes=num(d.outputBytes), duration=num(d.outputDuration);
+         const prior=this.lastStreamSample;
+         if(stream.active && prior && bytes>=prior.bytes && duration>=prior.duration && stamp>prior.at+1000){
+           stream.bitrate_kbps=Math.max(0,Math.round(((bytes-prior.bytes)*8)/(stamp-prior.at)));
+         }
+         this.lastStreamSample=stream.active?{bytes,at:stamp,duration}:null;
        }
      }
      if(rs.status==='fulfilled'){
@@ -168,6 +175,7 @@ export class OBSConnector {
        }
      }
    }
+   if(!this.connected||stream.active!==true)this.lastStreamSample=null;
    return {observed_at:new Date().toISOString(),obs_connected:this.connected,studio_mode:snapshot.studioMode,
      program_scene:snapshot.program,preview_scene:snapshot.preview,streaming:stream.active,recording:record.active,
      source_count:sourceMap.size,scene_count:Object.keys(snapshot.scenes).length,

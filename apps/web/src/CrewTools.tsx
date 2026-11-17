@@ -304,6 +304,7 @@ export function HealthPanel({stats,connected}:{stats:Record<string,unknown>|unde
  const stream=stats?.stream as Record<string,unknown>|undefined;
  const skipped=Number(stream?.skipped_frames||0),total=Number(stream?.total_frames||0);
  const drop=total>0?100*skipped/total:0;
+ const bitrate=Number(stream?.bitrate_kbps||0);
  useEffect(()=>{if(!connected)return;setHistory(h=>[...h.slice(-29),{cpu,fps,drop}]);},[connected,cpu,fps,drop]);
  const problems=connected?[
   cpu>cpuLimit?`OBS CPU usage exceeds ${cpuLimit}%`:'',
@@ -323,7 +324,7 @@ export function HealthPanel({stats,connected}:{stats:Record<string,unknown>|unde
   return <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-label={`${key} history`}><polyline points={pts} stroke="#54dfba" fill="none" strokeWidth="2" vectorEffect="non-scaling-stroke"/></svg>;
  };
  return <section className="crew-health"><div className="crew-top"><div><h2>Stream health monitoring</h2><p>Real OBS telemetry. Graphs track the last 30 readings while this dashboard remains open.</p></div><button onClick={()=>void grant()}>{alerts?'Browser alerts enabled':'Enable browser alerts'}</button></div>
- <div className="crew-health-charts"><div><strong>CPU · {connected?cpu.toFixed(1)+'%':'Unknown'}</strong>{chart('cpu',100)}</div><div><strong>Render FPS · {connected?fps.toFixed(1):'Unknown'}</strong>{chart('fps',60)}</div><div><strong>Dropped frames · {connected?drop.toFixed(1)+'%':'Unknown'}</strong>{chart('drop',10)}</div></div>
+ <div className="crew-health-charts"><div><strong>Bitrate · {connected?bitrate.toFixed(0)+' kbps':'Unknown'}</strong><p>Measured from OBS stream output bytes over time</p></div><div><strong>CPU · {connected?cpu.toFixed(1)+'%':'Unknown'}</strong>{chart('cpu',100)}</div><div><strong>Render FPS · {connected?fps.toFixed(1):'Unknown'}</strong>{chart('fps',60)}</div><div><strong>Dropped frames · {connected?drop.toFixed(1)+'%':'Unknown'}</strong>{chart('drop',10)}</div></div>
  <div className="crew-health-options"><label>CPU warning (%) <input type="number" min="30" max="99" value={cpuLimit} onChange={e=>{setCpuLimit(+e.target.value);localStorage.setItem('tally-health-cpu',e.target.value);}}/></label><label>Minimum FPS <input type="number" min="1" max="120" value={fpsLimit} onChange={e=>{setFpsLimit(+e.target.value);localStorage.setItem('tally-health-fps',e.target.value);}}/></label></div>
  <div className={problems.length?'crew-health-warnings':'crew-health-clear'}>{problems.length?problems.map(p=><p key={p}>⚠ {p}</p>):'OBS stream health within configured limits'}</div>
  </section>;

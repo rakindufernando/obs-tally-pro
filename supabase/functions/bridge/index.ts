@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
         cpu_pct:num(st.cpu_pct),fps:num(st.fps),memory_mb:num(st.memory_mb),disk_gb:num(st.disk_gb),
         render_ms:num(st.render_ms),render_skipped:num(st.render_skipped),render_total:num(st.render_total),
         output_skipped:num(st.output_skipped),output_total:num(st.output_total),
-        stream:{active:stream.active===true,duration_ms:num(stream.duration_ms),bytes:num(stream.bytes),
+        stream:{active:stream.active===true,duration_ms:num(stream.duration_ms),bytes:num(stream.bytes),bitrate_kbps:num(stream.bitrate_kbps),
           congestion:num(stream.congestion),skipped_frames:num(stream.skipped_frames),total_frames:num(stream.total_frames)},
         record:{active:record.active===true,paused:record.paused===true,duration_ms:num(record.duration_ms),bytes:num(record.bytes)},
         studio_mode:t.studio_mode===true,program_scene:safeString(t.program_scene,150),
