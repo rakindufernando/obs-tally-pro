@@ -9,6 +9,10 @@ import {Activity,AlertTriangle,ArrowRight,Camera,Check,ChevronDown,CircleHelp,Cl
 import {freshness} from '@tally/shared';
 import {supabase,configured,unwrap} from './client';
 import {CrewPanel,HealthPanel} from './CrewTools';
+import {DirectorPortal31} from './DirectorPortal31';
+import {ProgramFeed31} from './ProgramFeed31';
+import {TallyMessages31} from './TallyMessages31';
+import {CallCenter31} from './CallCenter31';
 import type {CameraRow,CameraSnapshot,Production} from './client';
 
 type AuthInfo={user:User;role:string};
@@ -425,13 +429,14 @@ function TallyPage(){
  const fullscreen=async()=>{try{if(document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();else setError('Use Add to Home Screen for an app-like fullscreen display on iPhone.');}catch{setError('Fullscreen permission denied.');}};
  const screen=state==='PROGRAM'?'ON AIR':state==='PREVIEW'?'STANDBY':state==='IDLE'?'IDLE':state==='RECONNECTING'?'RECONNECTING':'SIGNAL UNAVAILABLE';
  return <div className={`tally-screen ${stateClass(state)}`}>
- <div className="tally-top"><span className="tally-brand"><img className="bumbi-tally-logo" src={bumbiLogo} alt="BUMBI Software Solutions"/> OBS TALLY PRO</span><button className="crew-crew-open" onClick={()=>setCrewOpen(true)}>MULTIVIEW + CREW</button><button aria-label="Camera settings" className="tally-settings" onClick={()=>setSettings(!settings)}><Settings size={23}/></button></div>
+ <div className="tally-top"><span className="tally-brand"><img className="bumbi-tally-logo" src={bumbiLogo} alt="BUMBI Software Solutions"/> OBS TALLY PRO</span><button className="crew-crew-open" onClick={()=>setCrewOpen(true)}>CREW MESSAGES</button><button aria-label="Camera settings" className="tally-settings" onClick={()=>setSettings(!settings)}><Settings size={23}/></button></div>
  <div className="tally-center"><div className="tally-ring"><span/></div><div className="tally-headline">{screen}</div>
  <div className="tally-camera">{snapshot?`CAM ${String(snapshot.number).padStart(2,'0')}`:'CAMERA'}</div>
  <div className="tally-state-label">{state==='PROGRAM'?'PROGRAM':state==='PREVIEW'?'PREVIEW':state==='IDLE'?snapshot?.name||'NOT SELECTED':state==='RECONNECTING'?'CONNECTION INTERRUPTED':'OBS CONNECTION LOST'}</div>
  {state==='OFFLINE'&&<p className="tally-warning">{error||'Live status is not confirmed. Check connection or pairing.'}</p>}
- </div><div className="tally-bottom"><span><span className="status-orb"/> {state==='OFFLINE'?'NO TRUSTED SIGNAL':state==='RECONNECTING'?'RECONNECTING':`${snapshot?.production_name||'Production'} · SYNCED`}</span><span>{new Date(clock).toLocaleTimeString()}</span></div><div className="tally-brand-credit"><img src={bumbiLogo} alt="BUMBI"/> Developed by BUMBI Software Solutions</div>
- {settings&&<div className="mobile-settings"><div className="mobile-settings-head"><strong>Camera controls</strong><button className="icon-btn" onClick={()=>setSettings(false)}><X/></button></div>
+ </div>{crewProductionId&&cameraId&&<div className="tally-v31-media"><ProgramFeed31 client={supabase} productionId={crewProductionId} compact/><CallCenter31 client={supabase} productionId={crewProductionId} director={false} compact/></div>}<div className="tally-bottom"><span><span className="status-orb"/> {state==='OFFLINE'?'NO TRUSTED SIGNAL':state==='RECONNECTING'?'RECONNECTING':`${snapshot?.production_name||'Production'} · SYNCED`}</span><span>{new Date(clock).toLocaleTimeString()}</span></div><div className="tally-brand-credit"><img src={bumbiLogo} alt="BUMBI"/> Developed by BUMBI Software Solutions</div>
+ {crewProductionId&&cameraId&&<TallyMessages31 client={supabase} productionId={crewProductionId} cameraId={cameraId}/>}
+  {settings&&<div className="mobile-settings"><div className="mobile-settings-head"><strong>Camera controls</strong><button className="icon-btn" onClick={()=>setSettings(false)}><X/></button></div>
  <button onClick={()=>void fullscreen()}><Maximize size={18}/> Enter fullscreen</button>
  <button onClick={()=>void wakeScreen()}><Power size={18}/> Keep screen awake {wake?'✓':''}</button>
  <button onClick={()=>{setSound(!sound);localStorage.setItem('tally-sound',!sound?'yes':'no');playBeep(850,.1);}}>{sound?<Volume2 size={18}/>:<VolumeX size={18}/>} Sound {sound?'ON':'OFF'}</button>
@@ -439,7 +444,7 @@ function TallyPage(){
  <button onClick={()=>void refresh()}><RefreshCw size={18}/> Refresh trusted state</button>
  {error&&<p className="error small">{error}</p>}
  <p>Foreground use is recommended. Browser vibration, fullscreen, and wake lock support varies by device.</p></div>}
- {crewOpen&&crewProductionId&&<div className="crew-mobile-view"><div className="crew-own-status"><strong>CAM {snapshot?.number} · {screen}</strong><span>Your personal tally remains visible</span><button onClick={()=>setCrewOpen(false)}>Return to tally</button></div><CrewPanel productionId={crewProductionId} director={false} ownCameraId={cameraId}/></div>}
+ {crewOpen&&crewProductionId&&<div className="crew-mobile-view"><div className="crew-own-status"><strong>CAM {snapshot?.number} · {screen}</strong><span>Your personal tally remains visible</span><button onClick={()=>setCrewOpen(false)}>Return to tally</button></div><CrewPanel productionId={crewProductionId} director={false} ownCameraId={cameraId} initialTab="messages" hideLegacyTalkback hideMultiview/></div>}
  </div>;
 }
 function Dock(){
@@ -496,6 +501,8 @@ export default function App(){const {auth,loading}=useIdentity();
  if(loading)return <div className="loading"><img className="bumbi-loading-logo" src={bumbiLogo} alt="BUMBI Software Solutions"/> OBS TALLY PRO <small>Authenticating</small></div>;
  return <Routes>
   <Route path="/login" element={auth&&['administrator','director'].includes(auth.role)?<Navigate to="/dashboard"/>:<Login/>}/>
+  <Route path="/director/login" element={<DirectorPortal31/>}/>
+  <Route path="/director" element={<DirectorPortal31/>}/>
   <Route path="/pair" element={<PairPage/>}/>
   <Route path="/tally/:cameraId" element={<TallyPage/>}/>
   <Route path="/dock" element={<Dock/>}/>
