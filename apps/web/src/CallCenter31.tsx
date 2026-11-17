@@ -70,7 +70,9 @@ export function CallCenter31({client,productionId,director,compact=false,dialReq
   const iceServers=await getIce();
   if(peer.current)peer.current.close();
   const pc=new RTCPeerConnection({iceServers});
-  peer.current=pc;remoteId.current=to;callId.current=cid;iceQueue.current=[];
+  peer.current=pc;remoteId.current=to;callId.current=cid;
+  // Candidates may arrive while the receiver is still granting microphone access.
+  // Do not erase queued ICE candidates for the pending incoming offer.
   pc.onicecandidate=(ev)=>{if(ev.candidate)void send(to,cid,'ice',{candidate:ev.candidate.toJSON()}).catch(e=>setError(messageOf(e)));};
   pc.ontrack=(ev)=>{
    const stream=ev.streams[0]||new MediaStream([ev.track]);remote.current=stream;
@@ -95,6 +97,7 @@ export function CallCenter31({client,productionId,director,compact=false,dialReq
  },[]);
  const startCall=useCallback(async(to:string,name:string)=>{
   if(!to||peer.current||incomingRef.current)return;
+  iceQueue.current=[];
   setError('');setDetail('Requesting microphone permission');
   try{
    const stream=await ensureMic(),cid=uuid();remoteName.current=name;
@@ -116,6 +119,7 @@ export function CallCenter31({client,productionId,director,compact=false,dialReq
   setError('');
   try{
    const stream=await ensureMic();
+   if(incomingRef.current?.call_id!==s.call_id){stream.getTracks().forEach(t=>t.stop());localStream.current=null;return;}
    const p=await setupPeer(s.sender_id,s.call_id);
    const desc=s.payload.sdp as RTCSessionDescriptionInit|undefined;
    if(desc?.type!=='offer')throw new Error('Caller provided an invalid offer');
@@ -124,6 +128,7 @@ export function CallCenter31({client,productionId,director,compact=false,dialReq
    const answer=await p.createAnswer();await p.setLocalDescription(answer);
    await send(s.sender_id,s.call_id,'answer',{sdp:p.localDescription?.toJSON()});
    incomingRef.current=null;setIncoming(null);setStatus('connecting');setDetail('Connecting encrypted audio');
+   if(ring.current){ring.current.pause();ring.current.currentTime=0;}
    await flushIce();
   }catch(e){setError(messageOf(e));clearCall('error',true);}
  },[ensureMic,setupPeer,send,flushIce,clearCall]);
@@ -136,6 +141,7 @@ export function CallCenter31({client,productionId,director,compact=false,dialReq
   lastEvent.current=s.id;
   if(s.kind==='offer'){
    if(Date.now()-new Date(s.created_at).getTime()>40000)return;
+   iceQueue.current=[];
    if(incomingRef.current||peer.current){void send(s.sender_id,s.call_id,'busy').catch(()=>{});return;}
    incomingRef.current=s;setIncoming(s);setStatus('incoming');setPanelOpen(true);setDetail('Incoming voice call');
    void send(s.sender_id,s.call_id,'ringing').catch(()=>{});
@@ -149,6 +155,7 @@ export function CallCenter31({client,productionId,director,compact=false,dialReq
   const waiting=incomingRef.current;
   if(waiting&&s.call_id===waiting.call_id&&s.sender_id===waiting.sender_id){
    if(s.kind==='hangup'){clearCall('missed');setDetail('Caller ended the call');}
+   else if(s.kind==='decline'||s.kind==='busy'){clearCall(s.kind);setDetail('Call was cancelled');}
    else if(s.kind==='ice'){
     const c=s.payload.candidate as RTCIceCandidateInit|undefined;if(c)iceQueue.current.push(c);
    }return;
