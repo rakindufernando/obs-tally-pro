@@ -1,5 +1,9 @@
-import {useCallback,useEffect,useRef,useState} from 'react';
+import {useCallback,useEffect,useRef,useState,useContext,createContext} from 'react';
+import type {ReactNode} from 'react';
+import type {SupabaseClient} from '@supabase/supabase-js';
 import {supabase} from './client';
+const CrewClientContext31=createContext<SupabaseClient>(supabase);
+export function CrewClientProvider31({client,children}:{client:SupabaseClient;children:ReactNode}){return <CrewClientContext31.Provider value={client}>{children}</CrewClientContext31.Provider>;}
 
 type Camera={id:string;number:number;name:string;enabled:boolean;state:string;preview_at:string|null};
 type View={production_id:string;production_name:string;bridge_online:boolean;last_bridge_at:string|null;cameras:Camera[]};
@@ -10,6 +14,7 @@ const canPreview=(cam:Camera,own?:string)=>!own||cam.id===own;
 const cls=(s:string)=>s==='PROGRAM'?'live':s==='PREVIEW'?'standby':s==='IDLE'?'idle':'offline';
 
 function useCrewView(productionId:string){
+ const supabase=useContext(CrewClientContext31);
  const [data,setData]=useState<View|null>(null);
  const [error,setError]=useState('');
  const reload=useCallback(async()=>{
@@ -35,6 +40,7 @@ function useCrewView(productionId:string){
 }
 
 function Preview({camera,productionId,allowed}:{camera:Camera;productionId:string;allowed:boolean}){
+ const supabase=useContext(CrewClientContext31);
  const [url,setUrl]=useState<string|null>(null);
  const [error,setError]=useState('');
  useEffect(()=>{
@@ -57,6 +63,7 @@ function Preview({camera,productionId,allowed}:{camera:Camera;productionId:strin
 }
 
 function CrewMultiview({productionId,ownCameraId,scenes}:{productionId:string;ownCameraId?:string;scenes?:string[]}){
+ const supabase=useContext(CrewClientContext31);
  const {data,error,reload}=useCrewView(productionId);
  const [layout,setLayout]=useState('4');
  const [chosen,setChosen]=useState<string[]>([]);
@@ -105,6 +112,7 @@ function CrewMultiview({productionId,ownCameraId,scenes}:{productionId:string;ow
 }
 
 function CrewChat({productionId,director,ownCameraId,cameras}:{productionId:string;director:boolean;ownCameraId?:string;cameras:Camera[]}){
+ const supabase=useContext(CrewClientContext31);
  const [msgs,setMsgs]=useState<Message[]>([]);
  const [message,setMessage]=useState('');
  const [targets,setTargets]=useState<string[]>([]);
@@ -159,6 +167,7 @@ type Participants={directors:string[];cameramen:Participant[]};
 type Signal={id:number;sender_id:string;receiver_id:string;call_id:string;kind:'offer'|'answer'|'ice'|'hangup';payload:Record<string,unknown>};
 
 function CrewTalkback({productionId,director,ownCameraId}:{productionId:string;director:boolean;ownCameraId?:string}){
+ const supabase=useContext(CrewClientContext31);
  const [people,setPeople]=useState<Participants>({directors:[],cameramen:[]});
  const [target,setTarget]=useState('');
  const [status,setStatus]=useState('Not connected');
