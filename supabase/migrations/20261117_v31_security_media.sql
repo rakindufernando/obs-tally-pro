@@ -139,7 +139,7 @@ grant execute on function public.program_feed_access(uuid) to authenticated;
 -- Atomic director camera wizard. Existing camera IDs and pairing links are retained.
 create or replace function public.save_camera_assignment_31(pid uuid,cid uuid,cam_number integer,cam_name text,operator_name text,source_kind text,source_name text)
 returns uuid language plpgsql security definer set search_path=public,pg_temp as $$
-declare camera_id uuid:=cid; found_source jsonb; mapping uuid;
+declare saved_camera_id uuid:=cid; found_source jsonb; mapping uuid;
 begin
  if not public.is_production_operator(pid) then raise exception 'Only directors or administrators can assign cameras';end if;
  if cam_number is null or cam_number<1 or cam_number>999 then raise exception 'Camera number must be 1 to 999';end if;
@@ -155,20 +155,20 @@ begin
   raise exception 'Another camera already uses this number';end if;
  if cid is null then
   insert into public.cameras(production_id,number,name,cameraman,enabled)
-  values(pid,cam_number,btrim(cam_name),coalesce(btrim(operator_name),''),true) returning id into camera_id;
+  values(pid,cam_number,btrim(cam_name),coalesce(btrim(operator_name),''),true) returning id into saved_camera_id;
  else
   update public.cameras set number=cam_number,name=btrim(cam_name),cameraman=coalesce(btrim(operator_name),''),updated_at=now()
-  where id=cid and production_id=pid returning id into camera_id;
-  if camera_id is null then raise exception 'Camera not in this production';end if;
+  where id=cid and production_id=pid returning id into saved_camera_id;
+  if saved_camera_id is null then raise exception 'Camera not in this production';end if;
  end if;
- select m.id into mapping from public.camera_mappings m where m.camera_id=camera_id and not m.excluded order by m.created_at limit 1 for update;
+ select m.id into mapping from public.camera_mappings m where m.camera_id=saved_camera_id and not m.excluded order by m.created_at limit 1 for update;
  if mapping is null then
   insert into public.camera_mappings(camera_id,kind,obs_name,obs_uuid,excluded)
-  values(camera_id,source_kind,source_name,found_source->>'uuid',false);
+  values(saved_camera_id,source_kind,source_name,found_source->>'uuid',false);
  else
   update public.camera_mappings set kind=source_kind,obs_name=source_name,obs_uuid=found_source->>'uuid',excluded=false where id=mapping;
  end if;
- return camera_id;
+ return saved_camera_id;
 end $$;
 revoke all on function public.save_camera_assignment_31(uuid,uuid,integer,text,text,text,text) from public,anon;
 grant execute on function public.save_camera_assignment_31(uuid,uuid,integer,text,text,text,text) to authenticated;
