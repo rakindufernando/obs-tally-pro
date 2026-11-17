@@ -155,7 +155,7 @@ export function CallCenter31({client,productionId,director,compact=false,dialReq
   const waiting=incomingRef.current;
   if(waiting&&s.call_id===waiting.call_id&&s.sender_id===waiting.sender_id){
    if(s.kind==='hangup'){clearCall('missed');setDetail('Caller ended the call');}
-   else if(s.kind==='decline'||s.kind==='busy'){clearCall(s.kind);setDetail('Call was cancelled');}
+   else if(s.kind==='decline'||s.kind==='busy'){clearCall(s.kind==='decline'?'declined':'busy');setDetail('Call was cancelled');}
    else if(s.kind==='ice'){
     const c=s.payload.candidate as RTCIceCandidateInit|undefined;if(c)iceQueue.current.push(c);
    }return;
