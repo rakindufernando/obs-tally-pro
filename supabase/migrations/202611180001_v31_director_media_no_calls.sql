@@ -68,6 +68,8 @@ using (
 -- Retire voice call signalling. No other database objects are deleted.
 revoke all on function public.send_crew_rtc_signal(uuid,uuid,uuid,text,jsonb) from public,anon,authenticated;
 drop function if exists public.send_crew_rtc_signal(uuid,uuid,uuid,text,jsonb);
+-- Former participant listing existed exclusively for voice talkback.
+drop function if exists public.crew_participants(uuid);
 drop policy if exists crew_rtc_receive on public.crew_rtc_signals;
 revoke all on public.crew_rtc_signals from public,anon,authenticated;
 -- Remove stale call signalling records only. This table contains no operator messages or OBS configuration.
