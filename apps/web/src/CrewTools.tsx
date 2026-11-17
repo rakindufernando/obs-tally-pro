@@ -318,12 +318,12 @@ function CrewTalkback({productionId,director,ownCameraId}:{productionId:string;d
  </div>;
 }
 
-export function CrewPanel({productionId,director,ownCameraId,scenes,initialTab}:{productionId:string;director:boolean;ownCameraId?:string;scenes?:string[];initialTab?:'multiview'|'messages'|'talkback'}){
+export function CrewPanel({productionId,director,ownCameraId,scenes,initialTab,hideLegacyTalkback=false,hideMultiview=false,cameraChoices}:{productionId:string;director:boolean;ownCameraId?:string;scenes?:string[];initialTab?:'multiview'|'messages'|'talkback';hideLegacyTalkback?:boolean;hideMultiview?:boolean;cameraChoices?:{id:string;number:number;name:string}[]}){
  const [tab,setTab]=useState<'multiview'|'messages'|'talkback'>(initialTab||'multiview');
  const {data}=useCrewView(productionId);
- const cams=data?.cameras||[];
+ const cams=data?.cameras||cameraChoices?.map(c=>({...c,enabled:true,state:'IDLE',preview_at:null}))||[];
  return <section className="crew-shell">
-   <div className="crew-tabs">{([['multiview','Multiview'],['messages','Operator messages'],['talkback','Mobile talkback']] as const).map(([id,label])=><button key={id} className={tab===id?'active':''} onClick={()=>setTab(id)}>{label}</button>)}</div>
+   <div className="crew-tabs">{([...(hideMultiview?[]:[['multiview','Multiview'] as const]),['messages','Operator messages'] as const,...(hideLegacyTalkback?[]:[['talkback','Mobile talkback'] as const])] as const).map(([id,label])=><button key={id} className={tab===id?'active':''} onClick={()=>setTab(id)}>{label}</button>)}</div>
    {tab==='multiview'&&<CrewMultiview productionId={productionId} ownCameraId={ownCameraId} scenes={director?scenes:undefined}/>}
    {tab==='messages'&&<CrewChat productionId={productionId} director={director} ownCameraId={ownCameraId} cameras={cams}/>}
    {tab==='talkback'&&<CrewTalkback productionId={productionId} director={director} ownCameraId={ownCameraId}/>}

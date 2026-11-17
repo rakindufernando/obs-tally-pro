@@ -284,8 +284,8 @@ function Director({auth}:{auth:AuthInfo}){
  <Diagnostic title="OBS streaming" value={good?(production.streaming?'ACTIVE':'STOPPED'):'UNKNOWN'} note="Independent of Program selection"/><Diagnostic title="OBS recording" value={good?(production.recording?'ACTIVE':'STOPPED'):'UNKNOWN'} note="Independent of Program selection"/></div>
  <OBSStatsPanel production={production} clock={clock}/>
  <div className="section-heading"><h2>Production data</h2></div><p className="subtext">Streaming indicators are informational. A camera can be on Program even when streaming is stopped.</p></>}
- {production&&page==='crew'&&<CrewPanel productionId={production.id} director scenes={(production.obs_sources||[]).filter(x=>x.kind==='SCENE').map(x=>x.name)}/>}
- {production&&page==='talkback'&&<CrewPanel productionId={production.id} director scenes={(production.obs_sources||[]).filter(x=>x.kind==='SCENE').map(x=>x.name)} initialTab="talkback"/>}
+ {production&&page==='crew'&&<CrewPanel productionId={production.id} director initialTab="messages" hideLegacyTalkback hideMultiview cameraChoices={cameras.map(c=>({id:c.id,number:c.number,name:c.name}))}/>}
+ {production&&page==='talkback'&&<div className="settings-panel"><h2>Mobile talkback</h2><p>Authorized directors manage calls in the separate director portal. Administrator tools remain available here.</p><Link className="btn" to="/director/login">Open Director Control Panel</Link></div>}
  {production&&page==='settings'&&<SettingsPage auth={auth} production={production} showNotice={setNotice}/>}
  {page==='help'&&<HelpPage/>}
  <footer className="app-footer"><span>OBS TALLY PRO © 2026</span><BrandCredit/></footer>
@@ -308,6 +308,9 @@ function Productions({auth,productions,onCreate,onChoose}:{auth:AuthInfo;product
 }
 function SettingsPage({auth,production,showNotice}:{auth:AuthInfo;production:Production;showNotice:(v:string)=>void}){
  const [code,setCode]=useState('');const [error,setError]=useState('');
+ const [directorEmail,setDirectorEmail]=useState('');const [directorAssigned,setDirectorAssigned]=useState('');
+ const assignDirector=async()=>{setError('');setDirectorAssigned('');const result=await supabase.rpc('assign_production_director_31',{pid:production.id,director_email:directorEmail.trim()});
+ if(result.error){setError(result.error.message);return;}setDirectorAssigned('Existing director account assigned to this production.');showNotice('Director access granted');setDirectorEmail('');};
  return <><div className="settings-panels"><section className="settings-panel"><div className="setting-icon"><Cloud/></div><h2>Local OBS Bridge registration</h2><p>Generate a 10-minute registration code for the Windows OBS computer. The bridge exchanges it for a private credential stored only on that PC.</p>
  <button className="btn" onClick={()=>void supabase.rpc('create_bridge_registration',{pid:production.id}).then(r=>{try{setCode(unwrap(r) as string);setError('');}catch(e){setError(toError(e));}})}><Lock size={16}/> Generate bridge code</button>
  {code&&<div className="copy-code"><code>{code}</code><button className="icon-btn" onClick={()=>void buttonCopy(code)}><Clipboard/></button></div>}
@@ -315,6 +318,12 @@ function SettingsPage({auth,production,showNotice}:{auth:AuthInfo;production:Pro
  <p className="muted small">Replacing the registered bridge revokes the previous bridge and marks all cameras unavailable until a new snapshot arrives.</p></section>
  <section className="settings-panel"><div className="setting-icon"><Shield/></div><h2>Access & account security</h2><p>Signed in as {auth.user.email||'Anonymous user'}</p><div className="detail-line"><span>Role</span><strong>{auth.role.toUpperCase()}</strong></div><div className="detail-line"><span>Production ID</span><code>{production.id}</code></div>
  <p className="muted small">Camera links never contain the OBS password, Supabase secret key, or the bridge token.</p></section>
+ {auth.role==='administrator'&&<section className="settings-panel"><div className="setting-icon"><Shield/></div><h2>Director accounts and production access</h2>
+ <p>Director users must first be created in Supabase Authentication and assigned the director profile role. Then grant access to this production without changing the administrator account.</p>
+ <label>Existing director email<input type="email" value={directorEmail} onChange={e=>setDirectorEmail(e.target.value)} placeholder="director@example.com"/></label>
+ <button className="btn" onClick={()=>void assignDirector()} disabled={!directorEmail.trim()}>Assign verified director</button>
+ {directorAssigned&&<p className="notice">{directorAssigned}</p>}
+ <p><Link to="/director/login">Open separate Director Control Panel</Link></p></section>}
  <section className="settings-panel"><div className="setting-icon"><Monitor/></div><h2>OBS Custom Browser Dock</h2><p>The dock is read-only. Scene switching remains in OBS Studio, eliminating accidental remote cuts.</p><Link className="btn secondary" to="/dock"><Monitor size={16}/> Open dock</Link></section>
  </div></>;
 }

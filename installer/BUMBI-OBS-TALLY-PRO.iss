@@ -1,11 +1,11 @@
 #define AppName "OBS TALLY PRO"
 #define Publisher "BUMBI Software Solutions"
-#define AppVersion "3.0.0"
+#define AppVersion "3.1.0"
 [Setup]
 AppId={{B87D61B2-6B07-4932-AD59-5AAC76CF770A}
 AppName={#AppName}
 AppVersion={#AppVersion}
-AppVerName=OBS TALLY PRO 3.0
+AppVerName=OBS TALLY PRO 3.1
 AppPublisher={#Publisher}
 AppPublisherURL=https://rakindufernando.github.io/obs-tally-pro/
 AppSupportURL=https://github.com/rakindufernando/obs-tally-pro
@@ -20,7 +20,7 @@ WizardStyle=modern
 Compression=lzma2
 SolidCompression=yes
 OutputDir=..\dist\installer
-OutputBaseFilename=BUMBI-OBS-TALLY-PRO-Setup-v3.0.0
+OutputBaseFilename=BUMBI-OBS-TALLY-PRO-Setup-v3.1.0
 CloseApplications=yes
 RestartApplications=no
 DisableProgramGroupPage=yes

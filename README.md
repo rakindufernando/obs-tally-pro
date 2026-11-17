@@ -243,3 +243,7 @@ Windows 2.0 upgrades in place using the same Inno Setup AppId and preserves per-
 
 ## Crew multiview and messaging
 See [V3_FEATURES.md](V3_FEATURES.md) for production safety, limitations and documentation.
+
+
+## Version 3.1
+See [V31_RELEASE.md](V31_RELEASE.md) for the dedicated director login, camera mappings, incoming-call integration, streaming architecture, authorization rules, test requirements and known infrastructure limitations. No setup executable is stored in this source repository.

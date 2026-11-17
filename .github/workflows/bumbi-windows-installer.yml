@@ -80,13 +80,13 @@ jobs:
           if ($isccCandidates.Count -eq 0) { throw 'Inno Setup ISCC.exe is unavailable' }
           & $isccCandidates[0] 'installer/BUMBI-OBS-TALLY-PRO.iss'
           if ($LASTEXITCODE -ne 0) { throw "Installer compilation failed: $LASTEXITCODE" }
-          $result = 'dist/installer/BUMBI-OBS-TALLY-PRO-Setup-v3.0.0.exe'
+          $result = 'dist/installer/BUMBI-OBS-TALLY-PRO-Setup-v3.1.0.exe'
           if (!(Test-Path $result)) { throw 'Compiled installer EXE missing' }
           Write-Host ('Installer SHA256 ' + (Get-FileHash $result -Algorithm SHA256).Hash)
       - name: Upload tested Windows installer
         uses: actions/upload-artifact@v4
         with:
           name: BUMBI-OBS-TALLY-PRO-Installer
-          path: dist/installer/BUMBI-OBS-TALLY-PRO-Setup-v3.0.0.exe
+          path: dist/installer/BUMBI-OBS-TALLY-PRO-Setup-v3.1.0.exe
           if-no-files-found: error
           retention-days: 30
