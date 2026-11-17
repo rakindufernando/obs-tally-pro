@@ -9,7 +9,6 @@ export function CrewClientProvider31({client,children}:{client:SupabaseClient;ch
 type Camera={id:string;number:number;name:string;enabled:boolean;state:string;preview_at:string|null};
 type View={production_id:string;production_name:string;bridge_online:boolean;last_bridge_at:string|null;cameras:Camera[]};
 type Message={id:string;sender_id:string;sender_kind:string;audience:string;target_camera_ids:string[];body:string;quick_command:boolean;created_at:string};
-const errorText=(e:unknown)=>e instanceof Error?e.message:String(e);
 const fmt=(v:string)=>new Date(v).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
 const cls=(s:string)=>s==='PROGRAM'?'live':s==='PREVIEW'?'standby':s==='IDLE'?'idle':'offline';
 
@@ -144,7 +143,7 @@ function CrewChat({productionId,director,ownCameraId,cameras}:{productionId:stri
    {cameras.map(c=><option key={c.id} value={c.id}>{c.name} · CAM {c.number}</option>)}</select>
    <button onClick={()=>setTargets([])}>Broadcast to all</button><small>Hold Ctrl to select multiple cameras. No selection means broadcast.</small>
  </div>}
-  <div className="crew-quick">{(director?['STANDBY','READY CAMERA','CHECK AUDIO','GO LIVE SOON','THANK YOU']:['READY','ACKNOWLEDGED','TECHNICAL ISSUE','PLEASE REPEAT']).map(cmd=><button key={cmd} disabled={busy} onClick={()=>void send(cmd,true)}>{cmd}</button>)}</div>
+  <div className="crew-quick">{(director?['STAND BY','GET READY','CHECK FRAMING','ZOOM IN','ZOOM OUT','PREPARE FOR LIVE']:['READY','ACKNOWLEDGED','TECHNICAL ISSUE','PLEASE REPEAT']).map(cmd=><button key={cmd} disabled={busy} onClick={()=>void send(cmd,true)}>{cmd}</button>)}</div>
   <div className="crew-message-list" role="log" aria-live="polite">{msgs.map(m=><div key={m.id} className={`crew-message ${m.sender_id===me?'mine':''}`}><div><strong>{m.sender_id===me?'You':m.sender_kind==='director'?'Director':'Cameraman'}</strong><span>{fmt(m.created_at)}{director&&m.sender_id===me?` · ${readCount[m.id]||0} read`:''}</span></div><p>{m.body}</p></div>)}</div>
   {!msgs.length&&<p className="crew-empty">No messages received yet.</p>}
   <form className="crew-compose" onSubmit={e=>{e.preventDefault();void send();}}><input value={message} onChange={e=>setMessage(e.target.value)} maxLength={500} required placeholder={director?'Send a secure camera instruction':'Reply to directors'}/><button type="submit" disabled={busy||!message.trim()}>Send</button></form>
