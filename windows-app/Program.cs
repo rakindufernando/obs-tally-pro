@@ -33,7 +33,7 @@ namespace BumbiTally
             if (args.Length > 0 && args[0] == "--remove-startup") { SetAutoStart(false); return; }
             if (args.Length > 0 && args[0] == "--self-test")
             {
-                bool okay = File.Exists(Runner) && File.Exists(Script) && File.Exists(Path.Combine(AppFolder,"bumbi-logo-white.png"));
+                bool okay = File.Exists(Runner) && File.Exists(Script) && File.Exists(Path.Combine(AppFolder,"bumbi-logo.png"));
                 if (okay) {
                     string sample = "test-only-password";
                     okay = Decode(Encode(sample)) == sample;
