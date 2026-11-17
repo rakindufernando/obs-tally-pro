@@ -1,6 +1,13 @@
 name: Build BUMBI OBS TALLY PRO Windows Installer
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'windows-app/**'
+      - 'installer/**'
+      - 'apps/obs-bridge/**'
+      - 'packages/shared/**'
+      - '.github/workflows/bumbi-windows-installer.yml'
   push:
     branches: [main]
     paths:
