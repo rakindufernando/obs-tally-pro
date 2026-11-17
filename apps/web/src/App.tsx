@@ -442,7 +442,7 @@ function TallyPage(){
  <button onClick={()=>void refresh()}><RefreshCw size={18}/> Refresh trusted state</button>
  {error&&<p className="error small">{error}</p>}
  <p>Foreground use is recommended. Browser vibration, fullscreen, and wake lock support varies by device.</p></div>}
- {crewOpen&&crewProductionId&&<div className="crew-mobile-view"><div className="crew-own-status"><strong>CAM {snapshot?.number} · {screen}</strong><span>Your personal tally remains visible</span><button onClick={()=>setCrewOpen(false)}>Return to tally</button></div><CrewPanel productionId={crewProductionId} director={false} ownCameraId={cameraId} initialTab="messages" hideLegacyTalkback hideMultiview/></div>}
+ {crewOpen&&crewProductionId&&<div className="crew-mobile-view"><div className="crew-own-status"><strong>CAM {snapshot?.number} · {screen}</strong><span>Your personal tally remains visible</span><button onClick={()=>setCrewOpen(false)}>Return to tally</button></div><CrewPanel productionId={crewProductionId} director={false} ownCameraId={cameraId} initialTab="messages" hideMultiview/></div>}
  </div>;
 }
 function Dock(){
