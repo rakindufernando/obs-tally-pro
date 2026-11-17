@@ -44,7 +44,10 @@ export function DirectorPortal31(){
  },[]);
  useEffect(()=>{let active=true;
   void verify().catch(e=>{if(active){setError(msg(e));setLoading(false);}});
-  const {data:{subscription}}=directorClient31.auth.onAuthStateChange(()=>{if(active)void verify();});
+  const {data:{subscription}}=directorClient31.auth.onAuthStateChange(()=>{
+   // Defer requests outside the Supabase authentication callback lock.
+   if(active)setTimeout(()=>{if(active)void verify().catch(e=>{setError(msg(e));setLoading(false);});},0);
+  });
   return()=>{active=false;subscription.unsubscribe();};
  },[verify]);
  const refresh=useCallback(async()=>{
@@ -70,12 +73,13 @@ export function DirectorPortal31(){
   void directorClient31.auth.getSession().then(({data})=>{
    if(!active||!data.session)return;
    directorClient31.realtime.setAuth(data.session.access_token);
-   channel=directorClient31.channel(`director-sync31:${productionId||'none'}`)
+   if(!productionId)return;
+   channel=directorClient31.channel(`production:${productionId}`,{config:{private:true}})
     .on('broadcast',{event:'tally'},()=>{void refresh();})
     .on('postgres_changes',{event:'*',schema:'public',table:'cameras'},()=>{void refresh();})
     .on('postgres_changes',{event:'*',schema:'public',table:'camera_mappings'},()=>{void refresh();})
     .on('postgres_changes',{event:'UPDATE',schema:'public',table:'obs_scene_commands'},()=>{void refresh();})
-    .subscribe();
+    .subscribe(status=>{if(active&&(status==='CHANNEL_ERROR'||status==='TIMED_OUT'))setError('Realtime sync interrupted. Automatic fallback refresh remains active.');});
   });
   void refresh();const timer=setInterval(()=>{setClock(Date.now());void refresh();},7000);
   const resume=()=>{if(document.visibilityState==='visible')void refresh();};
