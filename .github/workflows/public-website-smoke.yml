@@ -1,0 +1,53 @@
+name: Public Website Browser Smoke
+on:
+  pull_request:
+    paths:
+      - 'apps/web/**'
+      - 'scripts/smoke-public-pages.mjs'
+      - '.github/workflows/public-website-smoke.yml'
+  workflow_run:
+    workflows: ['Deploy OBS TALLY PRO to GitHub Pages']
+    types: [completed]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser-smoke:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout tests
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && 'main' || github.sha }}
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned Playwright
+        run: npm install --no-save --no-audit --no-fund playwright@1.55.0
+      - name: Find installed Chrome or install compatible Chromium
+        shell: bash
+        run: |
+          if command -v google-chrome >/dev/null 2>&1; then
+            echo "CHROME_BIN=$(command -v google-chrome)" >> "$GITHUB_ENV"
+          elif command -v google-chrome-stable >/dev/null 2>&1; then
+            echo "CHROME_BIN=$(command -v google-chrome-stable)" >> "$GITHUB_ENV"
+          else
+            npx playwright install chromium --with-deps
+          fi
+      - name: Check actual public login and pairing routes on mobile and desktop
+        env:
+          PUBLIC_SITE_URL: https://rakindufernando.github.io/obs-tally-pro/
+        run: |
+          node --check scripts/smoke-public-pages.mjs
+          node scripts/smoke-public-pages.mjs
+      - name: Upload failing screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-website-failed-pages
+          path: 'smoke-*.png'
+          if-no-files-found: ignore
+          retention-days: 7
