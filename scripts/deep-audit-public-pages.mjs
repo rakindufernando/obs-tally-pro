@@ -2,9 +2,12 @@
 // Does not log in, pair cameras, send messages, alter production, or simulate video.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {chromium} from 'playwright';
+import {chromium,firefox,webkit} from 'playwright';
 
 const base=process.env.PUBLIC_SITE_URL || 'https://rakindufernando.github.io/obs-tally-pro/';
+const engineName=process.env.BROWSER_ENGINE||'chromium';
+const engines={chromium,firefox,webkit};
+if(!(engineName in engines))throw new Error('Unsupported browser '+engineName);
 const layouts=[
  {name:'small-phone',width:320,height:700},
  {name:'phone',width:390,height:844},
@@ -21,7 +24,7 @@ const routes=[
  {path:'dock',heading:'Production starts here.',redirect:'login'},
  {path:'nonexistent-production-route',heading:'Production starts here.',redirect:'login'}
 ];
-const report={site:base,started_at:new Date().toISOString(),checks:[],passed:0,failed:0,failures:[],coverage_limits:[
+const report={site:base,browser:engineName,started_at:new Date().toISOString(),checks:[],passed:0,failed:0,failures:[],coverage_limits:[
  'No director or cameraman credentials used',
  'No actual OBS Bridge / WHEP publisher / camera feed available to this browser test',
  'No device-specific installation or network switching tested'
@@ -31,12 +34,12 @@ const record=(name,ok,detail={})=>{
  if(ok){report.passed++;console.log('PASS '+name);}
  else{report.failed++;report.failures.push(name+' '+(detail.error||''));console.error('FAIL '+name+' '+(detail.error||''));}
 };
-const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_BIN||undefined,args:['--no-sandbox']});
+const browser=await engines[engineName].launch({headless:true,...(engineName==='chromium'?{executablePath:process.env.CHROME_BIN||undefined,args:['--no-sandbox']}: {})});
 try{
  for(const layout of layouts){
   for(const route of routes){
    const label=layout.name+' /#/'+route.path;
-   const context=await browser.newContext({viewport:{width:layout.width,height:layout.height},serviceWorkers:'block',hasTouch:layout.width<=820,isMobile:layout.width<=390});
+   const context=await browser.newContext({viewport:{width:layout.width,height:layout.height},serviceWorkers:'block',hasTouch:layout.width<=820,isMobile:engineName!=='firefox'&&layout.width<=390});
    const page=await context.newPage();
    const pageErrors=[];
    page.on('pageerror',e=>pageErrors.push(e.message));
