@@ -32,6 +32,7 @@ jobs:
       - name: Audit production dependency vulnerabilities
         shell: bash
         run: |
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
           npm audit --omit=dev --json > dependency-audit.json || true
           node - <<'NODE'
           const fs=require('fs');
