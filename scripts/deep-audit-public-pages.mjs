@@ -47,6 +47,7 @@ try{
     await page.getByRole('heading',{name:route.heading}).first().waitFor({timeout:20000});
     await page.locator(route.selector||'body').first().waitFor({timeout:10000});
     if(route.redirect)assert.ok(page.url().includes('#/'+route.redirect),'Missing expected guest redirect to /'+route.redirect);
+    await page.waitForFunction(() => Array.from(document.images).every(img => img.complete),{},{timeout:12000});
     assert.equal(pageErrors.length,0,'Uncaught JS '+pageErrors.join('; '));
     const state=await page.evaluate(()=>({
       w:window.innerWidth,scroll:document.documentElement.scrollWidth,
