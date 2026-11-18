@@ -1,0 +1,39 @@
+# External VPS deployment. No OBS credentials or tokens belong in this repository.
+# Requires Docker Compose, a public DNS name, and ports TCP 80/443 and UDP 8189.
+services:
+  mediamtx:
+    image: bluenviron/mediamtx:1.21.4
+    restart: unless-stopped
+    environment:
+      MTX_WEBRTCADDITIONALHOSTS: "${RELAY_DOMAIN:?Set RELAY_DOMAIN in .env}"
+    volumes:
+      - ./mediamtx.yml:/etc/mediamtx/mediamtx.yml:ro
+    ports:
+      - "8189:8189/udp"
+    networks:
+      - relay
+    security_opt:
+      - no-new-privileges:true
+  caddy:
+    image: caddy:2.10.2
+    restart: unless-stopped
+    environment:
+      RELAY_DOMAIN: "${RELAY_DOMAIN:?Set RELAY_DOMAIN in .env}"
+    ports:
+      - "80:80/tcp"
+      - "443:443/tcp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - mediamtx
+    networks:
+      - relay
+    security_opt:
+      - no-new-privileges:true
+networks:
+  relay:
+volumes:
+  caddy_data:
+  caddy_config:

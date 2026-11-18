@@ -1,0 +1,40 @@
+name: Validate secured v3.1 video relay
+on:
+  pull_request:
+    paths:
+      - 'deploy/media-relay/**'
+      - '.github/workflows/relay-validation.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'deploy/media-relay/**'
+      - '.github/workflows/relay-validation.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  secure-relay-config:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Compose schema and required environment
+        env:
+          RELAY_DOMAIN: relay.example.invalid
+        run: docker compose -f deploy/media-relay/compose.yaml config --quiet
+      - name: Verify Caddy TLS reverse proxy configuration
+        run: |
+          docker run --rm \
+            -e RELAY_DOMAIN=relay.example.invalid \
+            -v "$PWD/deploy/media-relay/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            caddy:2.10.2 caddy validate --config /etc/caddy/Caddyfile
+      - name: Start pinned MediaMTX with auth required
+        run: |
+          docker run --rm -d --name bumbi-media-smoke \
+            -e MTX_WEBRTCADDITIONALHOSTS=relay.example.invalid \
+            -v "$PWD/deploy/media-relay/mediamtx.yml:/etc/mediamtx/mediamtx.yml:ro" \
+            bluenviron/mediamtx:1.21.4
+          sleep 4
+          docker logs bumbi-media-smoke
+          test "$(docker inspect -f '{{.State.Running}}' bumbi-media-smoke)" = true
+          docker stop bumbi-media-smoke
