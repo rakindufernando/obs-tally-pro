@@ -426,7 +426,7 @@ function TallyPage(){
  },[wake]);
  const fullscreen=async()=>{try{if(document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();else setError('Use Add to Home Screen for an app-like fullscreen display on iPhone.');}catch{setError('Fullscreen permission denied.');}};
  const screen=state==='PROGRAM'?'ON AIR':state==='PREVIEW'?'STANDBY':state==='IDLE'?'IDLE':state==='RECONNECTING'?'RECONNECTING':'SIGNAL UNAVAILABLE';
- return <div className={`tally-screen ${stateClass(state)}`}>
+ return <div className={`tally-screen tally-screen31 ${stateClass(state)}`}>
  <div className="tally-top"><span className="tally-brand"><img className="bumbi-tally-logo" src={bumbiLogo} alt="BUMBI Software Solutions"/> OBS TALLY PRO</span><button className="crew-crew-open" onClick={()=>setCrewOpen(true)}>CREW MESSAGES</button><button aria-label="Camera settings" className="tally-settings" onClick={()=>setSettings(!settings)}><Settings size={23}/></button></div>
  <div className="tally-center"><div className="tally-ring"><span/></div><div className="tally-headline">{screen}</div>
  <div className="tally-camera">{snapshot?`CAM ${String(snapshot.number).padStart(2,'0')}`:'CAMERA'}</div>
