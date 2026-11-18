@@ -27,7 +27,7 @@ jobs:
           docker run --rm \
             -e RELAY_DOMAIN=relay.example.invalid \
             -v "$PWD/deploy/media-relay/Caddyfile:/etc/caddy/Caddyfile:ro" \
-            caddy:2.10.2 validate --config /etc/caddy/Caddyfile
+            caddy:2.10.2 caddy validate --config /etc/caddy/Caddyfile
       - name: Start pinned MediaMTX with auth required
         run: |
           docker run --rm -d --name bumbi-media-smoke \
