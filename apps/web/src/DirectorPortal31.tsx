@@ -47,8 +47,14 @@ export function DirectorPortal31(){
  },[]);
  useEffect(()=>{let active=true;
   void verify().catch(e=>{if(active){setError(msg(e));setLoading(false);}});
-  const {data:{subscription}}=directorClient31.auth.onAuthStateChange(()=>{if(active)void verify();});
-  return()=>{active=false;subscription.unsubscribe();};
+  // Auth API calls must happen after the auth-event callback returns.
+  let scheduled:number|undefined;
+  const {data:{subscription}}=directorClient31.auth.onAuthStateChange(()=>{
+   if(!active)return;
+   if(scheduled!==undefined)window.clearTimeout(scheduled);
+   scheduled=window.setTimeout(()=>{scheduled=undefined;if(active)void verify().catch(e=>{if(active)setError(msg(e));});},0);
+  });
+  return()=>{active=false;if(scheduled!==undefined)window.clearTimeout(scheduled);subscription.unsubscribe();};
  },[verify]);
  const refresh=useCallback(async()=>{
   if(!authorized||!userId)return;

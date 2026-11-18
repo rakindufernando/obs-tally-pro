@@ -369,7 +369,7 @@ function TallyPage(){
  const [wake,setWake]=useState(false);const [crewOpen,setCrewOpen]=useState(false);const [crewProductionId,setCrewProductionId]=useState('');const lastState=useRef('');
  const wakeRef=useRef<{release:()=>Promise<void>}|null>(null);
  useEffect(()=>{let alive=true;if(cameraId)void supabase.rpc('production_for_paired_camera',{cid:cameraId}).then(r=>{if(alive&& !r.error&&typeof r.data==='string')setCrewProductionId(r.data);});return()=>{alive=false;};},[cameraId]);
- const ready=Boolean(snapshot&&transport&&navigator.onLine&&freshness(snapshot.last_bridge_at,snapshot.obs_connected,clock));
+ const ready=Boolean(snapshot&&navigator.onLine&&freshness(snapshot.last_bridge_at,snapshot.obs_connected,clock));
  const state=ready?(snapshot!.enabled?snapshot!.state:'IDLE'):(reconnecting&&navigator.onLine?'RECONNECTING':'OFFLINE');
  const refresh=useCallback(async()=>{
   if(!cameraId)return null;
@@ -426,13 +426,13 @@ function TallyPage(){
  },[wake]);
  const fullscreen=async()=>{try{if(document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();else setError('Use Add to Home Screen for an app-like fullscreen display on iPhone.');}catch{setError('Fullscreen permission denied.');}};
  const screen=state==='PROGRAM'?'ON AIR':state==='PREVIEW'?'STANDBY':state==='IDLE'?'IDLE':state==='RECONNECTING'?'RECONNECTING':'SIGNAL UNAVAILABLE';
- return <div className={`tally-screen ${stateClass(state)}`}>
+ return <div className={`tally-screen tally-screen31 ${stateClass(state)}`}>
  <div className="tally-top"><span className="tally-brand"><img className="bumbi-tally-logo" src={bumbiLogo} alt="BUMBI Software Solutions"/> OBS TALLY PRO</span><button className="crew-crew-open" onClick={()=>setCrewOpen(true)}>CREW MESSAGES</button><button aria-label="Camera settings" className="tally-settings" onClick={()=>setSettings(!settings)}><Settings size={23}/></button></div>
  <div className="tally-center"><div className="tally-ring"><span/></div><div className="tally-headline">{screen}</div>
  <div className="tally-camera">{snapshot?`CAM ${String(snapshot.number).padStart(2,'0')}`:'CAMERA'}</div>
  <div className="tally-state-label">{state==='PROGRAM'?'PROGRAM':state==='PREVIEW'?'PREVIEW':state==='IDLE'?snapshot?.name||'NOT SELECTED':state==='RECONNECTING'?'CONNECTION INTERRUPTED':'OBS CONNECTION LOST'}</div>
  {state==='OFFLINE'&&<p className="tally-warning">{error||'Live status is not confirmed. Check connection or pairing.'}</p>}
- </div>{crewProductionId&&cameraId&&<div className="tally-v31-media"><ProgramFeed31 client={supabase} productionId={crewProductionId} compact/></div>}<div className="tally-bottom"><span><span className="status-orb"/> {state==='OFFLINE'?'NO TRUSTED SIGNAL':state==='RECONNECTING'?'RECONNECTING':`${snapshot?.production_name||'Production'} · SYNCED`}</span><span>{new Date(clock).toLocaleTimeString()}</span></div><div className="tally-brand-credit"><img src={bumbiLogo} alt="BUMBI"/> Developed by BUMBI Software Solutions</div>
+ </div>{crewProductionId&&cameraId&&<div className="tally-v31-media"><ProgramFeed31 client={supabase} productionId={crewProductionId} compact/></div>}<div className="tally-bottom"><span><span className="status-orb"/> {state==='OFFLINE'?'NO TRUSTED SIGNAL':state==='RECONNECTING'?'RECONNECTING':`${snapshot?.production_name||'Production'} · ${transport?'REALTIME':'POLLING'}`}</span><span>{new Date(clock).toLocaleTimeString()}</span></div><div className="tally-brand-credit"><img src={bumbiLogo} alt="BUMBI"/> Developed by BUMBI Software Solutions</div>
  {crewProductionId&&cameraId&&<TallyMessages31 client={supabase} productionId={crewProductionId} cameraId={cameraId}/>}
   {settings&&<div className="mobile-settings"><div className="mobile-settings-head"><strong>Camera controls</strong><button className="icon-btn" onClick={()=>setSettings(false)}><X/></button></div>
  <button onClick={()=>void fullscreen()}><Maximize size={18}/> Enter fullscreen</button>
