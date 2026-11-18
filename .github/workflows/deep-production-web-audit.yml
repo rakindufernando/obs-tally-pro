@@ -6,15 +6,23 @@ on:
       - 'scripts/deep-audit-edge-auth.mjs'
       - '.github/workflows/deep-production-web-audit.yml'
   workflow_dispatch:
+  workflow_run:
+    workflows: ['Deploy OBS TALLY PRO to GitHub Pages']
+    types: [completed]
+  schedule:
+    - cron: '0 3 * * 1'
 permissions:
   contents: read
 jobs:
   audit-live-website:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Checkout audit scripts
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && 'main' || github.sha }}
       - name: Install Node
         uses: actions/setup-node@v4
         with:
