@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'scripts/deep-audit-public-pages.mjs'
+      - 'scripts/deep-audit-edge-auth.mjs'
       - '.github/workflows/deep-production-web-audit.yml'
   workflow_dispatch:
 permissions:
@@ -36,6 +37,11 @@ jobs:
         run: |
           node --check scripts/deep-audit-public-pages.mjs
           node scripts/deep-audit-public-pages.mjs
+      - name: Check live Edge Function failure isolation
+        if: always()
+        run: |
+          node --check scripts/deep-audit-edge-auth.mjs
+          node scripts/deep-audit-edge-auth.mjs
       - name: Retain JSON results and failure screenshots
         if: always()
         uses: actions/upload-artifact@v4
@@ -43,6 +49,7 @@ jobs:
           name: public-website-deep-audit
           path: |
             deep-audit-results.json
+            deep-edge-results.json
             deep-audit-*.png
           if-no-files-found: error
           retention-days: 21
