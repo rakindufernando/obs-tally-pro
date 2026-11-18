@@ -1,0 +1,89 @@
+name: Deep Production Website Audit
+on:
+  pull_request:
+    paths:
+      - 'scripts/deep-audit-public-pages.mjs'
+      - 'scripts/deep-audit-edge-auth.mjs'
+      - '.github/workflows/deep-production-web-audit.yml'
+  workflow_dispatch:
+  workflow_run:
+    workflows: ['Deploy OBS TALLY PRO to GitHub Pages']
+    types: [completed]
+  schedule:
+    - cron: '0 3 * * 1'
+permissions:
+  contents: read
+jobs:
+  audit-live-website:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - name: Checkout audit scripts
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && 'main' || github.sha }}
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned Playwright
+        run: npm install --no-save --no-audit --no-fund playwright@1.55.0
+      - name: Audit production dependency vulnerabilities
+        if: matrix.browser == 'chromium'
+        shell: bash
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm audit --omit=dev --json > dependency-audit.json || true
+          node - <<'NODE'
+          const fs=require('fs');
+          const data=JSON.parse(fs.readFileSync('dependency-audit.json','utf8'));
+          if(!data.metadata?.vulnerabilities)throw new Error('npm security audit did not return complete vulnerability metadata');
+          const v=data.metadata.vulnerabilities;
+          console.log('Dependency audit',JSON.stringify(v));
+          if(v.high||v.critical)throw new Error('High or critical production dependency vulnerabilities were reported');
+          NODE
+      - name: Ensure audit browser is installed
+        env:
+          ENGINE: ${{ matrix.browser }}
+        shell: bash
+        run: |
+          if [ "$ENGINE" = "chromium" ]; then
+            if command -v google-chrome >/dev/null 2>&1; then
+              echo "CHROME_BIN=$(command -v google-chrome)" >> "$GITHUB_ENV"
+            elif command -v google-chrome-stable >/dev/null 2>&1; then
+              echo "CHROME_BIN=$(command -v google-chrome-stable)" >> "$GITHUB_ENV"
+            else
+              npx playwright install chromium --with-deps
+            fi
+          else
+            npx playwright install "$ENGINE" --with-deps
+          fi
+      - name: Audit actual live website without credentials
+        env:
+          PUBLIC_SITE_URL: https://rakindufernando.github.io/obs-tally-pro/
+          BROWSER_ENGINE: ${{ matrix.browser }}
+        run: |
+          node --check scripts/deep-audit-public-pages.mjs
+          node scripts/deep-audit-public-pages.mjs
+      - name: Check live Edge Function failure isolation
+        if: always() && matrix.browser == 'chromium'
+        run: |
+          node --check scripts/deep-audit-edge-auth.mjs
+          node scripts/deep-audit-edge-auth.mjs
+      - name: Retain JSON results and failure screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-website-deep-audit-${{ matrix.browser }}
+          path: |
+            deep-audit-results.json
+            deep-edge-results.json
+            dependency-audit.json
+            deep-audit-*.png
+          if-no-files-found: error
+          retention-days: 21
