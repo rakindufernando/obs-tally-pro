@@ -20,8 +20,12 @@ The running OBS Bridge is offline, no real Program WHEP endpoint is configured, 
 | --- | --- | --- |
 | Public GitHub Pages deployment | Passed | Latest successful deploy workflow |
 | Existing guest browser smoke tests | 12/12 passed | GitHub Actions 44264590197 |
-| Expanded live browser checks | 37/37 passed | GitHub Actions 44274701112 |
-| Actual live Edge Function negative authorization checks | 10/10 passed | GitHub Actions 44274701112 |
+| Live Chromium browser audit | 37/37 passed | GitHub Actions 44275947939 |
+| Live Firefox browser audit | 37/37 passed | GitHub Actions 44275947939 |
+| Live WebKit browser audit | 37/37 passed | GitHub Actions 44275947939 |
+| Total browser matrix | **111/111 passed** | GitHub Actions 44275947939 |
+| Installed production dependency advisory scan | **0 reported vulnerabilities** | GitHub Actions 44275947939 |
+| Actual live Edge Function negative authorization checks | 10/10 passed | GitHub Actions 44275947939 |
 | Project TypeScript, OBS tally logic and build | Passed | GitHub Actions 44274701195 |
 | Native Windows build and self-tests on release commit | Passed | GitHub Actions 44239119263 |
 | MediaMTX and Caddy container startup/config | Passed in CI only | GitHub Actions 44237619960 |
@@ -31,7 +35,7 @@ The running OBS Bridge is offline, no real Program WHEP endpoint is configured, 
 | Inter-network ICE and device reconnection | NOT TESTED | Requires actual remote clients and relay |
 | SHARE SOFTWARE verified public download link | NOT VERIFIED | Separately hosted shareable installer URL not yet configured |
 
-The browser suite checks five screen widths (320, 390, 820, 1440, 1920 pixels) and seven routes per size plus unauthenticated tally behavior and public JS/CSS/PWA assets. It checks page JS exceptions, image loading, no horizontal overflow, protected-route redirects, director login presentation, pairing submission safeguards, the absence of retired call UI and TLS-delivered assets. It uses no live sessions or fake camera frames.
+Each of the Chromium, Firefox and WebKit browser suites checks five screen widths (320, 390, 820, 1440, 1920 pixels) and seven routes per size plus unauthenticated tally behavior and public JS/CSS/PWA assets. It checks page JS exceptions, image loading, no horizontal overflow, protected-route redirects, director login presentation, pairing submission safeguards, the absence of retired call UI and TLS-delivered assets. It uses no live sessions or fake camera frames.
 
 The Edge Function suite sends unauthenticated/invalid requests only. It verifies media-auth denies unauthenticated Program/camera reads, invalid publisher tokens and invalid paths, crew-ice rejects missing authentication, and the registered OBS Bridge endpoint refuses unsigned commands. It does not prove valid-token playback.
 
@@ -76,6 +80,10 @@ Read-only snapshot taken on 18 November 2026.
 
 All post-audit data counts reflect the live database, not simulated test data.
 
+## Supply-chain note
+
+The repository does not currently contain a committed `package-lock.json`. The dependency scan generated a temporary lockfile within CI and reported zero known advisories for the installed production dependency set. For reproducible releases, generate, review, and commit an npm lockfile and switch the build workflows to `npm ci` in a separately tested change.
+
 ## Blocking issues
 
 **P0 live video infrastructure absent**
@@ -108,6 +116,6 @@ Do not claim everything works perfectly until these unverified physical tests pa
 
 ## How to rerun
 
-GitHub Actions workflow **Deep Production Website Audit** runs on deployment completion, weekly, and on manual trigger. It publishes `deep-audit-results.json`, `deep-edge-results.json`, and any failure screenshots as an Actions artifact. Source scripts are `scripts/deep-audit-public-pages.mjs` and `scripts/deep-audit-edge-auth.mjs`.
+GitHub Actions workflow **Deep Production Website Audit** runs on deployment completion, weekly, and on manual trigger. All three browser engines are audited independently, and Chromium also tests Edge Function authorization and npm production dependencies. It publishes `deep-audit-results.json`, `deep-edge-results.json`, and any failure screenshots as an Actions artifact. Source scripts are `scripts/deep-audit-public-pages.mjs` and `scripts/deep-audit-edge-auth.mjs`.
 
 The older Public Website Browser Smoke workflow remains in place and is not replaced.
