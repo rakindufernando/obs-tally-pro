@@ -98,7 +98,9 @@ jobs:
             ) | Where-Object { Test-Path $_ }
           }
           if (!$isccCandidates) { throw 'Inno Setup ISCC.exe unavailable at standard installation paths' }
-          & $isccCandidates[0] 'installer/BUMBI-OBS-TALLY-PRO.iss'
+          $isccExe = [string]($isccCandidates | Select-Object -First 1)
+          if (!(Test-Path $isccExe)) { throw 'Inno Setup path resolution failed' }
+          & $isccExe 'installer/BUMBI-OBS-TALLY-PRO.iss'
           if ($LASTEXITCODE -ne 0) { throw "Installer compilation failed: $LASTEXITCODE" }
           $result = 'dist/installer/BUMBI-OBS-TALLY-PRO-Setup-v3.1.0.exe'
           if (!(Test-Path $result)) { throw 'Compiled installer EXE missing' }
