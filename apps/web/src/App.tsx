@@ -4,7 +4,7 @@ import type {Session,User} from '@supabase/supabase-js';
 import {Link,NavLink,Navigate,Route,Routes,useLocation,useNavigate,useParams} from 'react-router-dom';
 import {QRCodeSVG} from 'qrcode.react';
 import {Activity,AlertTriangle,ArrowRight,Camera,Check,ChevronDown,CircleHelp,Clipboard,Cloud,
- Cog,Eye,Film,Hash,Link2,Lock,LogOut,Maximize,Menu,Mic2,Monitor,Plus,Power,
+ Cog,Eye,Film,Hash,Link2,Lock,LogOut,Maximize,Menu,Monitor,Plus,Power,
  Radio,RefreshCw,Settings,Shield,Smartphone,Trash2,Wifi,WifiOff,X,Volume2,VolumeX} from 'lucide-react';
 import {freshness} from '@tally/shared';
 import {supabase,configured,unwrap} from './client';
@@ -12,7 +12,6 @@ import {CrewPanel,HealthPanel} from './CrewTools';
 import {DirectorPortal31} from './DirectorPortal31';
 import {ProgramFeed31} from './ProgramFeed31';
 import {TallyMessages31} from './TallyMessages31';
-import {CallCenter31} from './CallCenter31';
 import type {CameraRow,CameraSnapshot,Production} from './client';
 
 type AuthInfo={user:User;role:string};
@@ -62,7 +61,7 @@ function Login(){
 }
 const navItems=[['/dashboard','Overview',Monitor],['/cameras','Cameras',Camera],['/mapping','OBS mapping',Film],
  ['/productions','Productions',Radio],['/devices','Device access',Smartphone],['/events','Event history',Activity],
- ['/diagnostics','Diagnostics',Wifi],['/crew','Crew operations',Mic2],['/talkback','Mobile talkback',Radio],['/settings','Settings',Cog],['/help','Help',CircleHelp]] as const;
+ ['/diagnostics','Diagnostics',Wifi],['/crew','Crew messages',Radio],['/settings','Settings',Cog],['/help','Help',CircleHelp]] as const;
 function StateBadge({state}:{state:string}){return <span className={`state-badge ${stateClass(state)}`}><span className="dot"/>{state==='PROGRAM'?'ON AIR':state==='PREVIEW'?'STANDBY':state==='OFFLINE'?'UNAVAILABLE':state}</span>;}
 function CameraCard({camera,production,onPair,onEdit}:{camera:CameraRow;production:Production;onPair:(c:CameraRow)=>void;onEdit:(c:CameraRow)=>void}){
  const state=freshness(production.last_bridge_at,production.obs_connected)?camera.tally_states?.state||'OFFLINE':'OFFLINE';
@@ -288,9 +287,8 @@ function Director({auth}:{auth:AuthInfo}){
  <Diagnostic title="OBS streaming" value={good?(production.streaming?'ACTIVE':'STOPPED'):'UNKNOWN'} note="Independent of Program selection"/><Diagnostic title="OBS recording" value={good?(production.recording?'ACTIVE':'STOPPED'):'UNKNOWN'} note="Independent of Program selection"/></div>
  <OBSStatsPanel production={production} clock={clock}/>
  <div className="section-heading"><h2>Production data</h2></div><p className="subtext">Streaming indicators are informational. A camera can be on Program even when streaming is stopped.</p></>}
- {production&&page==='crew'&&<CrewPanel productionId={production.id} director initialTab="messages" hideLegacyTalkback hideMultiview cameraChoices={cameras.map(c=>({id:c.id,number:c.number,name:c.name}))}/>}
- {production&&page==='talkback'&&<div className="settings-panel"><h2>Mobile talkback</h2><p>Authorized directors manage calls in the separate director portal. Administrator tools remain available here.</p><Link className="btn" to="/director/login">Open Director Control Panel</Link></div>}
- {production&&page==='settings'&&<SettingsPage auth={auth} production={production} showNotice={setNotice}/>}
+ {production&&page==='crew'&&<CrewPanel productionId={production.id} director initialTab="messages" hideMultiview cameraChoices={cameras.map(c=>({id:c.id,number:c.number,name:c.name}))}/>}
+  {production&&page==='settings'&&<SettingsPage auth={auth} production={production} showNotice={setNotice}/>}
  {page==='help'&&<HelpPage/>}
  <footer className="app-footer"><span>OBS TALLY PRO © 2026</span><BrandCredit/></footer>
  </main>{production&&editor!==undefined&&<CameraEditor camera={editor} production={production} usedNumbers={cameras.map(c=>c.number)} onClose={()=>setEditor(undefined)} onSaved={()=>void refresh()} onRefresh={()=>void refresh()}/>}
@@ -434,7 +432,7 @@ function TallyPage(){
  <div className="tally-camera">{snapshot?`CAM ${String(snapshot.number).padStart(2,'0')}`:'CAMERA'}</div>
  <div className="tally-state-label">{state==='PROGRAM'?'PROGRAM':state==='PREVIEW'?'PREVIEW':state==='IDLE'?snapshot?.name||'NOT SELECTED':state==='RECONNECTING'?'CONNECTION INTERRUPTED':'OBS CONNECTION LOST'}</div>
  {state==='OFFLINE'&&<p className="tally-warning">{error||'Live status is not confirmed. Check connection or pairing.'}</p>}
- </div>{crewProductionId&&cameraId&&<div className="tally-v31-media"><ProgramFeed31 client={supabase} productionId={crewProductionId} compact/><CallCenter31 client={supabase} productionId={crewProductionId} director={false} compact/></div>}<div className="tally-bottom"><span><span className="status-orb"/> {state==='OFFLINE'?'NO TRUSTED SIGNAL':state==='RECONNECTING'?'RECONNECTING':`${snapshot?.production_name||'Production'} · SYNCED`}</span><span>{new Date(clock).toLocaleTimeString()}</span></div><div className="tally-brand-credit"><img src={bumbiLogo} alt="BUMBI"/> Developed by BUMBI Software Solutions</div>
+ </div>{crewProductionId&&cameraId&&<div className="tally-v31-media"><ProgramFeed31 client={supabase} productionId={crewProductionId} compact/></div>}<div className="tally-bottom"><span><span className="status-orb"/> {state==='OFFLINE'?'NO TRUSTED SIGNAL':state==='RECONNECTING'?'RECONNECTING':`${snapshot?.production_name||'Production'} · SYNCED`}</span><span>{new Date(clock).toLocaleTimeString()}</span></div><div className="tally-brand-credit"><img src={bumbiLogo} alt="BUMBI"/> Developed by BUMBI Software Solutions</div>
  {crewProductionId&&cameraId&&<TallyMessages31 client={supabase} productionId={crewProductionId} cameraId={cameraId}/>}
   {settings&&<div className="mobile-settings"><div className="mobile-settings-head"><strong>Camera controls</strong><button className="icon-btn" onClick={()=>setSettings(false)}><X/></button></div>
  <button onClick={()=>void fullscreen()}><Maximize size={18}/> Enter fullscreen</button>
@@ -444,7 +442,7 @@ function TallyPage(){
  <button onClick={()=>void refresh()}><RefreshCw size={18}/> Refresh trusted state</button>
  {error&&<p className="error small">{error}</p>}
  <p>Foreground use is recommended. Browser vibration, fullscreen, and wake lock support varies by device.</p></div>}
- {crewOpen&&crewProductionId&&<div className="crew-mobile-view"><div className="crew-own-status"><strong>CAM {snapshot?.number} · {screen}</strong><span>Your personal tally remains visible</span><button onClick={()=>setCrewOpen(false)}>Return to tally</button></div><CrewPanel productionId={crewProductionId} director={false} ownCameraId={cameraId} initialTab="messages" hideLegacyTalkback hideMultiview/></div>}
+ {crewOpen&&crewProductionId&&<div className="crew-mobile-view"><div className="crew-own-status"><strong>CAM {snapshot?.number} · {screen}</strong><span>Your personal tally remains visible</span><button onClick={()=>setCrewOpen(false)}>Return to tally</button></div><CrewPanel productionId={crewProductionId} director={false} ownCameraId={cameraId} initialTab="messages" hideMultiview/></div>}
  </div>;
 }
 function Dock(){

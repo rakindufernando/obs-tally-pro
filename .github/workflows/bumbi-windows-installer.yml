@@ -6,6 +6,8 @@ on:
       - 'windows-app/**'
       - 'installer/**'
       - 'apps/obs-bridge/**'
+      - 'apps/web/**'
+      - 'supabase/**'
       - 'packages/shared/**'
       - '.github/workflows/bumbi-windows-installer.yml'
   push:
@@ -18,6 +20,9 @@ on:
       - '.github/workflows/bumbi-windows-installer.yml'
 permissions:
   contents: read
+concurrency:
+  group: windows-installer-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   windows-installer:
     runs-on: windows-latest
@@ -78,19 +83,30 @@ jobs:
       - name: Build branded Windows installation EXE
         shell: pwsh
         run: |
-          $isccCandidates = @(Get-ChildItem 'C:\Program Files (x86)' -Filter ISCC.exe -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match 'Inno Setup' } | Select-Object -ExpandProperty FullName)
-          if ($isccCandidates.Count -eq 0) {
-            choco install innosetup -y --no-progress
+          $isccCandidates = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe",
+            "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
+          ) | Where-Object { Test-Path $_ }
+          if (!$isccCandidates) {
+            choco install innosetup -y --no-progress --limit-output
             if ($LASTEXITCODE -ne 0) { throw 'Unable to install Inno Setup compiler' }
-            $isccCandidates = @(Get-ChildItem 'C:\Program Files (x86)' -Filter ISCC.exe -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match 'Inno Setup' } | Select-Object -ExpandProperty FullName)
+            $isccCandidates = @(
+              "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+              "${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe",
+              "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
+            ) | Where-Object { Test-Path $_ }
           }
-          if ($isccCandidates.Count -eq 0) { throw 'Inno Setup ISCC.exe is unavailable' }
-          & $isccCandidates[0] 'installer/BUMBI-OBS-TALLY-PRO.iss'
+          if (!$isccCandidates) { throw 'Inno Setup ISCC.exe unavailable at standard installation paths' }
+          $isccExe = [string]($isccCandidates | Select-Object -First 1)
+          if (!(Test-Path $isccExe)) { throw 'Inno Setup path resolution failed' }
+          & $isccExe 'installer/BUMBI-OBS-TALLY-PRO.iss'
           if ($LASTEXITCODE -ne 0) { throw "Installer compilation failed: $LASTEXITCODE" }
           $result = 'dist/installer/BUMBI-OBS-TALLY-PRO-Setup-v3.1.0.exe'
           if (!(Test-Path $result)) { throw 'Compiled installer EXE missing' }
           Write-Host ('Installer SHA256 ' + (Get-FileHash $result -Algorithm SHA256).Hash)
-      - name: Upload tested Windows installer
+      - name: Retain tested installer for external hosting
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: BUMBI-OBS-TALLY-PRO-Installer

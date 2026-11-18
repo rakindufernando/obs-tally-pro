@@ -3,7 +3,7 @@
 // Fail closed. Each WHEP read checks the viewer's current Supabase session AND pairing.
 import {createClient} from 'npm:@supabase/supabase-js@2';
 const out=(status:number)=>new Response(status===200?'OK':'Access denied',{status,headers:{'cache-control':'no-store'}});
-const pathRx=/^program-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+const pathRx=/^(program|camera)-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 Deno.serve(async req=>{
  if(req.method!=='POST')return out(405);
  try{
@@ -28,7 +28,15 @@ Deno.serve(async req=>{
   const sb=createClient(Deno.env.get('SUPABASE_URL')!,key,{global:{headers:{Authorization:`Bearer ${token}`}},auth:{persistSession:false,autoRefreshToken:false}});
   const {data:{user},error}=await sb.auth.getUser(token);
   if(error||!user)return out(403);
-  const {data:allowed,error:access}=await sb.rpc('can_access_crew_production',{pid:match[1]});
-  return out(!access&&allowed===true?200:403);
+  if(match[1]==='program'){
+   const {data:allowed,error:access}=await sb.rpc('can_access_crew_production',{pid:match[2]});
+   return out(!access&&allowed===true?200:403);
+  }
+  // A signed-in director may read only configured camera feeds for their production.
+  // SQL RLS prevents cameramen and other directors from selecting this mapping.
+  const mapping=await sb.from('director_camera_media').select('production_id').eq('camera_id',match[2]).maybeSingle();
+  if(mapping.error||!mapping.data)return out(403);
+  const {data:director,error:permission}=await sb.rpc('is_production_director',{pid:mapping.data.production_id});
+  return out(!permission&&director===true?200:403);
  }catch{return out(403);}
 });
