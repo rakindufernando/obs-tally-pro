@@ -1,0 +1,27 @@
+# Private real-time video transport for OBS TALLY PRO v3.1.
+# External authentication is mandatory for ALL publish/read operations.
+logLevel: info
+authMethod: http
+authHTTPAddress: https://lvzrhzlcyajhhgfqgdar.supabase.co/functions/v1/media-auth
+authHTTPExclude: []
+api: false
+metrics: false
+pprof: false
+playback: false
+rtsp: false
+rtmp: false
+hls: false
+srt: false
+moq: false
+webrtc: true
+webrtcAddress: :8889
+webrtcEncryption: false
+webrtcAllowOrigins:
+  - https://rakindufernando.github.io
+webrtcLocalUDPAddress: :8189
+webrtcLocalTCPAddress: ""
+webrtcIPsFromInterfaces: false
+# The public relay DNS name is set by MTX_WEBRTCADDITIONALHOSTS in Compose.
+paths:
+  all_others:
+    source: publisher
