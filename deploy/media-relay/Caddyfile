@@ -1,0 +1,6 @@
+# HTTPS reverse proxy for WHIP/WHEP signaling; ICE media uses UDP 8189.
+# RELAY_DOMAIN comes from Compose .env.
+{$RELAY_DOMAIN} {
+  encode zstd gzip
+  reverse_proxy mediamtx:8889
+}
