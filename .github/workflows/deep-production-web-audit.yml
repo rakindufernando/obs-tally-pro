@@ -29,6 +29,18 @@ jobs:
           node-version: '22'
       - name: Install pinned Playwright
         run: npm install --no-save --no-audit --no-fund playwright@1.55.0
+      - name: Audit production dependency vulnerabilities
+        shell: bash
+        run: |
+          npm audit --omit=dev --json > dependency-audit.json || true
+          node - <<'NODE'
+          const fs=require('fs');
+          const data=JSON.parse(fs.readFileSync('dependency-audit.json','utf8'));
+          if(!data.metadata?.vulnerabilities)throw new Error('npm security audit did not return complete vulnerability metadata');
+          const v=data.metadata.vulnerabilities;
+          console.log('Dependency audit',JSON.stringify(v));
+          if(v.high||v.critical)throw new Error('High or critical production dependency vulnerabilities were reported');
+          NODE
       - name: Ensure Chromium available
         shell: bash
         run: |
@@ -58,6 +70,7 @@ jobs:
           path: |
             deep-audit-results.json
             deep-edge-results.json
+            dependency-audit.json
             deep-audit-*.png
           if-no-files-found: error
           retention-days: 21
