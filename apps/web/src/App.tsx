@@ -325,7 +325,13 @@ function SettingsPage({auth,production,showNotice}:{auth:AuthInfo;production:Pro
  <label>Existing director email<input type="email" value={directorEmail} onChange={e=>setDirectorEmail(e.target.value)} placeholder="director@example.com"/></label>
  <button className="btn" onClick={()=>void assignDirector()} disabled={!directorEmail.trim()}>Assign verified director</button>
  {directorAssigned&&<p className="notice">{directorAssigned}</p>}
- <p><Link to="/director/login">Open separate Director Control Panel</Link></p></section>}
+ <p><Link to="/director/login">Open separate Director Control Panel</Link></p>
+ <p className="muted small">Use this exact URL from another PC. The director signs in with their assigned account, while OBS stays on the production computer.</p>
+ <button className="btn secondary" type="button" onClick={()=>void buttonCopy(`${window.location.origin}${import.meta.env.BASE_URL}#/director/login`)
+  .then(()=>showNotice('Remote director login link copied'))
+  .catch(()=>window.prompt('Copy remote director login link',`${window.location.origin}${import.meta.env.BASE_URL}#/director/login`))}>
+  <Clipboard size={16}/> Copy remote director login URL</button>
+ </section>}
  <section className="settings-panel"><div className="setting-icon"><Monitor/></div><h2>OBS Custom Browser Dock</h2><p>The dock is read-only. Scene switching remains in OBS Studio, eliminating accidental remote cuts.</p><Link className="btn secondary" to="/dock"><Monitor size={16}/> Open dock</Link></section>
  </div></>;
 }
