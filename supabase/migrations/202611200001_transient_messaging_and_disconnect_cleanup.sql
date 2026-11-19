@@ -94,3 +94,24 @@ using (
        and c.production_id=operator_messages.production_id and c.id=any(target_camera_ids)
      ))))))
 );
+
+-- One-tap batch acknowledgement for the currently paired camera only.
+create or replace function public.acknowledge_camera_messages(pid uuid,cid uuid)
+returns integer language plpgsql security definer set search_path=public,pg_temp as $$
+declare affected integer;
+begin
+ if auth.uid() is null or not exists(
+  select 1 from public.camera_devices d join public.cameras c on c.id=d.camera_id
+  where d.user_id=auth.uid() and d.revoked_at is null and c.id=cid and c.production_id=pid
+ ) then raise exception 'Camera pairing required';end if;
+ insert into public.operator_message_reads(message_id,reader_id)
+ select m.id,auth.uid() from public.operator_messages m
+ where m.production_id=pid and m.audience='crew'
+  and m.created_at>now()-interval '45 minutes'
+  and (cardinality(m.target_camera_ids)=0 or cid=any(m.target_camera_ids))
+ on conflict(message_id,reader_id) do nothing;
+ get diagnostics affected=row_count;
+ return affected;
+end $$;
+revoke all on function public.acknowledge_camera_messages(uuid,uuid) from public,anon;
+grant execute on function public.acknowledge_camera_messages(uuid,uuid) to authenticated;
