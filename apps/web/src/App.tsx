@@ -494,7 +494,7 @@ function CameraHome(){
  },[]);
  return destination?<Navigate to={destination} replace/>:<div className="loading">Checking camera pairing</div>;
 }
-export default function App(){const {auth,loading}=useIdentity();
+function MainApp(){const {auth,loading}=useIdentity();
  if(!configured)return <div className="auth-layout"><div className="auth-card"><h1>Supabase configuration required</h1><p>Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY and rebuild the frontend. No simulated live statuses are displayed.</p><BrandCredit/></div></div>;
  if(loading)return <div className="loading"><img className="bumbi-loading-logo" src={bumbiLogo} alt="BUMBI Software Solutions"/> OBS TALLY PRO <small>Authenticating</small></div>;
  return <Routes>
@@ -506,4 +506,12 @@ export default function App(){const {auth,loading}=useIdentity();
   <Route path="/dock" element={<Dock/>}/>
   <Route path="/*" element={auth&&['administrator','director'].includes(auth.role)?<Director auth={auth}/>:auth?<CameraHome/>:<Navigate to="/login"/>}/>
  </Routes>;
+}
+
+/** Independent director portal bypasses the shared cameraman/admin auth bootstrap. */
+export default function App(){
+ const location=useLocation();
+ if(location.pathname==='/director'||location.pathname==='/director/login')
+  return <DirectorPortal31/>;
+ return <MainApp/>;
 }
