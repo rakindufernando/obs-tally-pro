@@ -2,7 +2,6 @@ import {useCallback,useEffect,useRef,useState,useContext,createContext} from 're
 import type {ReactNode} from 'react';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {supabase} from './client';
-import {ProgramFeed31} from './ProgramFeed31';
 const CrewClientContext31=createContext<SupabaseClient>(supabase);
 export function CrewClientProvider31({client,children}:{client:SupabaseClient;children:ReactNode}){return <CrewClientContext31.Provider value={client}>{children}</CrewClientContext31.Provider>;}
 
@@ -78,7 +77,7 @@ function CrewMultiview({productionId,ownCameraId,scenes}:{productionId:string;ow
  };
  useEffect(()=>{const fn=()=>setFullscreen(Boolean(document.fullscreenElement));document.addEventListener('fullscreenchange',fn);return()=>document.removeEventListener('fullscreenchange',fn);},[]);
  return <div className="crew-panel" ref={ref}>
-  <div className="crew-top"><div><h2>Production multiview</h2><p>Authenticated continuous camera streams, not OBS screenshots. Unpublished cameras are shown as unavailable.</p></div>
+  <div className="crew-top"><div><h2>Director camera status grid</h2><p>Live OBS tally states from the secure Bridge. No video feeds or relay services are required.</p></div>
    <div className="crew-actions"><label>Layout <select value={layout} onChange={e=>setLayout(e.target.value)}><option value="2">2 cameras</option><option value="4">4 cameras</option><option value="9">9 cameras</option><option value="custom">Custom 16</option></select></label>
    <button onClick={()=>void reload()}>Refresh</button><button onClick={()=>void enterFullscreen()}>{fullscreen?'Exit fullscreen':'Fullscreen'}</button></div></div>
   {error&&<p className="crew-error" role="alert">{error}</p>}
@@ -89,7 +88,9 @@ function CrewMultiview({productionId,ownCameraId,scenes}:{productionId:string;ow
   <div className="crew-cam-grid" style={{gridTemplateColumns:`repeat(${layout==='2'?2:layout==='9'?3:layout==='custom'?4:2}, minmax(0,1fr))`}}>
    {display.map(cam=><div key={cam.id} className={`crew-tile crew-${cls(cam.state)} ${cam.id===ownCameraId?'crew-own':''}`}>
      <div className="crew-tile-meta"><strong>CAM {String(cam.number).padStart(2,'0')} · {cam.name}</strong><span className={`crew-status ${cls(cam.state)}`}>{cam.state==='PROGRAM'?'LIVE':cam.state==='PREVIEW'?'PREVIEW':cam.state==='OFFLINE'?'DISCONNECTED':'IDLE'}</span></div>
-     <div className="crew-video"><ProgramFeed31 client={supabase} productionId={productionId} cameraId={cam.id} compact/></div>
+     <div className={`crew-state-preview crew-state-${cls(cam.state)}`} aria-label={`Camera ${cam.number} ${cam.state}`}>
+       <span className="crew-state-orb" aria-hidden="true"/><strong>{cam.state==='PROGRAM'?'ON AIR':cam.state==='PREVIEW'?'STANDBY':cam.state==='OFFLINE'?'NO SIGNAL':'IDLE'}</strong>
+      </div>
      {cam.id===ownCameraId&&<strong className="crew-identity">YOUR CAMERA</strong>}
    </div>)}
   </div>
@@ -110,8 +111,10 @@ function CrewChat({productionId,director,ownCameraId,cameras}:{productionId:stri
  const [busy,setBusy]=useState(false);
  const [readCount,setReadCount]=useState<Record<string,number>>({});
  const [me,setMe]=useState('');
+ const [notice,setNotice]=useState('');
+ const [refreshing,setRefreshing]=useState(false);
  const refresh=useCallback(async()=>{
-  const r=await supabase.from('operator_messages').select('*').eq('production_id',productionId).order('created_at',{ascending:false}).limit(90);
+  const r=await supabase.from('operator_messages').select('*').eq('production_id',productionId).order('created_at',{ascending:false}).limit(100);
   if(r.error){setError(r.error.message);return;}
   const m=(r.data||[] as Message[]).slice().reverse() as Message[];
   setMsgs(m);
@@ -134,32 +137,59 @@ function CrewChat({productionId,director,ownCameraId,cameras}:{productionId:stri
    supabase.realtime.setAuth(data.session.access_token);
    channel=supabase.channel(`ops:${productionId}`,{config:{private:true}})
      .on('broadcast',{event:'message'},()=>void refresh())
-     .on('postgres_changes',{event:'INSERT',schema:'public',table:'operator_messages',filter:`production_id=eq.${productionId}`},()=>void refresh())
+     .on('postgres_changes',{event:'*',schema:'public',table:'operator_messages',filter:`production_id=eq.${productionId}`},()=>void refresh())
      .subscribe();
   });
-  const id=setInterval(()=>void refresh(),7000);
-  const online=()=>void refresh();window.addEventListener('online',online);
-  return()=>{active=false;clearInterval(id);window.removeEventListener('online',online);if(channel)void supabase.removeChannel(channel);};
+  const id=setInterval(()=>void refresh(),3000);
+  const online=()=>void refresh();
+  const visibility=()=>{if(document.visibilityState==='visible')void refresh();};
+  window.addEventListener('online',online);document.addEventListener('visibilitychange',visibility);
+  return()=>{active=false;clearInterval(id);window.removeEventListener('online',online);
+   document.removeEventListener('visibilitychange',visibility);if(channel)void supabase.removeChannel(channel);};
  },[refresh,productionId,supabase]);
  const send=async(content=message,quick=false)=>{
   const txt=content.trim();if(!txt)return;
   setBusy(true);setError('');
   const r=await supabase.rpc('send_operator_message',{pid:productionId,recipient:director?'crew':'directors',targets:director?targets:[],message_text:txt,quick});
   if(r.error)setError(r.error.message);
-  else{setMessage('');void refresh();}
+  else{setMessage('');setNotice('Message saved to the realtime queue. Await cameraman acknowledgement.');await refresh();}
   setBusy(false);
  };
- return <div className="crew-panel"><div className="crew-top"><div><h2>Operator communication</h2><p>Private, authorized text commands and crew replies. Messages retained for 14 days by access policy.</p></div><button onClick={()=>void refresh()}>Refresh</button></div>
+ const deleteOne=async(id:string)=>{
+  if(!window.confirm('Delete this message for everyone immediately?'))return;
+  setBusy(true);setError('');
+  const r=await supabase.rpc('delete_operator_message',{mid:id});
+  if(r.error)setError(r.error.message);
+  else{setNotice('Message deleted for all devices.');await refresh();}
+  setBusy(false);
+ };
+ const clearAll=async()=>{
+  if(!director||!window.confirm('Delete every message and acknowledgement in this production? This cannot be undone.'))return;
+  setBusy(true);setError('');
+  const r=await supabase.rpc('clear_operator_messages',{pid:productionId});
+  if(r.error)setError(r.error.message);
+  else{setNotice('All production messages deleted.');setReadCount({});await refresh();}
+  setBusy(false);
+ };
+ const refreshNow=async()=>{
+  setRefreshing(true);await refresh();setRefreshing(false);
+ };
+ return <div className="crew-panel"><div className="crew-top"><div><h2>Live operator messages</h2><p>Individual, group, and broadcast instructions. Messages are cleared when OBS disconnects, or can be deleted manually.</p></div>
+  <div className="crew-message-actions"><button onClick={()=>void refreshNow()} disabled={refreshing}>{refreshing?'Refreshing':'Refresh'}</button>
+   {director&&<button className="crew-delete-all" disabled={busy||!msgs.length} onClick={()=>void clearAll()}>Clear all messages</button>}</div></div>
   {director&&<div className="crew-target"><strong>Message recipients</strong><p>{targets.length?targets.length===1?'Individual camera message':`Group message to ${targets.length} cameras`:'Broadcast to all paired cameramen'}</p>
-   <select multiple aria-label="Select cameras for private messages" size={Math.min(6,Math.max(2,cameras.length))}
-    value={targets} onChange={e=>setTargets(Array.from(e.target.selectedOptions,option=>option.value))}>
-   {cameras.map(c=><option key={c.id} value={c.id}>{c.name} · CAM {c.number}</option>)}</select>
-   <button onClick={()=>setTargets([])}>Broadcast to all</button><small>Hold Ctrl to select multiple cameras. No selection means broadcast.</small>
+   <div className="crew-recipient-grid">{cameras.map(c=><label key={c.id}>
+    <input type="checkbox" checked={targets.includes(c.id)}
+     onChange={e=>setTargets(current=>e.target.checked?[...current,c.id]:current.filter(id=>id!==c.id))}/>
+    CAM {String(c.number).padStart(2,'0')} · {c.name}</label>)}</div>
+   <button type="button" onClick={()=>setTargets([])}>Broadcast to all</button><small>Choose one camera for individual messages, several for a group, or none for broadcast.</small>
  </div>}
   <div className="crew-quick">{(director?['STAND BY','GET READY','CHECK FRAMING','ZOOM IN','ZOOM OUT','PREPARE FOR LIVE']:['READY','ACKNOWLEDGED','TECHNICAL ISSUE','PLEASE REPEAT']).map(cmd=><button key={cmd} disabled={busy} onClick={()=>void send(cmd,true)}>{cmd}</button>)}</div>
-  <div className="crew-message-list" role="log" aria-live="polite">{msgs.map(m=><div key={m.id} className={`crew-message ${m.sender_id===me?'mine':''}`}><div><strong>{m.sender_id===me?'You':m.sender_kind==='director'?'Director':'Cameraman'}</strong><span>{fmt(m.created_at)}{director&&m.sender_id===me?` · ${readCount[m.id]||0} read`:''}</span></div><p>{m.body}</p></div>)}</div>
+  <div className="crew-message-list" role="log" aria-live="polite">{msgs.map(m=><div key={m.id} className={`crew-message ${m.sender_id===me?'mine':''}`}><div><strong>{m.sender_id===me?'You':m.sender_kind==='director'?'Director':'Cameraman'}</strong><span>{fmt(m.created_at)}{director&&m.sender_id===me?` · ${readCount[m.id]||0} acknowledged`:''}</span></div>
+   <p>{m.body}</p>{(director||m.sender_id===me)&&<button type="button" className="crew-delete-one" disabled={busy} onClick={()=>void deleteOne(m.id)}>Delete</button>}</div>)}</div>
   {!msgs.length&&<p className="crew-empty">No messages received yet.</p>}
   <form className="crew-compose" onSubmit={e=>{e.preventDefault();void send();}}><input value={message} onChange={e=>setMessage(e.target.value)} maxLength={500} required placeholder={director?'Send a secure camera instruction':'Reply to directors'}/><button type="submit" disabled={busy||!message.trim()}>Send</button></form>
+  {notice&&<p className="crew-notice" role="status">{notice}</p>}
   {error&&<p className="crew-error" role="alert">{error}</p>}
  </div>;
 }
