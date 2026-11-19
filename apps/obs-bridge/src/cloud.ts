@@ -65,17 +65,6 @@ export class CloudBridge {
    catch(e){console.warn('Cloud telemetry',e instanceof Error?e.message:'unavailable');}
  }
  getCameraCount(){return this.cameras.length;}
- getPreviewTargets(){
-   return this.cameras.filter(c=>c.enabled).flatMap(c=>{
-     // Scene mappings can contain other people's cameras; preview only the explicit mapped source.
-     const r=c.mappings.find(m=>!m.excluded&&m.name&&m.kind==='SOURCE');
-     return r?[{camera_id:c.id,source:r.name}]:[];
-   });
- }
- async uploadPreview(camera_id:string,image_base64:string){
-   if(!this.cameras.some(c=>c.id===camera_id))return;
-   await this.call('preview',{camera_id,image_base64},this.saved.token);
- }
  async fetchCommands():Promise<{id:string;scene_name:string}[]>{
    const data=await this.call('commands',{},this.saved.token);
    return Array.isArray(data.commands)?data.commands as {id:string;scene_name:string}[]:[];

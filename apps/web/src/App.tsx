@@ -10,7 +10,6 @@ import {freshness} from '@tally/shared';
 import {supabase,configured,unwrap} from './client';
 import {CrewPanel,HealthPanel} from './CrewTools';
 import {DirectorPortal31} from './DirectorPortal31';
-import {ProgramFeed31} from './ProgramFeed31';
 import {TallyMessages31} from './TallyMessages31';
 import type {CameraRow,CameraSnapshot,Production} from './client';
 
@@ -56,7 +55,8 @@ function Login(){
   <label>Password<input type="password" autoComplete="current-password" required value={password} onChange={e=>setPassword(e.target.value)} placeholder="Your password"/></label>
   {error&&<div className="error"><AlertTriangle size={16}/>{error}</div>}
   <button disabled={working} className="btn full" type="submit">{working?'Signing in…':'Sign in securely'} <ArrowRight size={17}/></button></form>
-  <p className="auth-foot">Administrator provisioning is performed once using Supabase Auth and the setup SQL in the README.</p><BrandCredit/>
+  <p className="auth-foot">Administrator provisioning is performed once using Supabase Auth and the setup SQL in the README.</p>
+  <p className="director-access-link"><Link to="/director/login">Director login on another computer</Link></p><BrandCredit/>
  </div></div>;
 }
 const navItems=[['/dashboard','Overview',Monitor],['/cameras','Cameras',Camera],['/mapping','OBS mapping',Film],
@@ -325,7 +325,13 @@ function SettingsPage({auth,production,showNotice}:{auth:AuthInfo;production:Pro
  <label>Existing director email<input type="email" value={directorEmail} onChange={e=>setDirectorEmail(e.target.value)} placeholder="director@example.com"/></label>
  <button className="btn" onClick={()=>void assignDirector()} disabled={!directorEmail.trim()}>Assign verified director</button>
  {directorAssigned&&<p className="notice">{directorAssigned}</p>}
- <p><Link to="/director/login">Open separate Director Control Panel</Link></p></section>}
+ <p><Link to="/director/login">Open separate Director Control Panel</Link></p>
+ <p className="muted small">Use this exact URL from another PC. The director signs in with their assigned account, while OBS stays on the production computer.</p>
+ <button className="btn secondary" type="button" onClick={()=>void buttonCopy(`${window.location.origin}${import.meta.env.BASE_URL}#/director/login`)
+  .then(()=>showNotice('Remote director login link copied'))
+  .catch(()=>window.prompt('Copy remote director login link',`${window.location.origin}${import.meta.env.BASE_URL}#/director/login`))}>
+  <Clipboard size={16}/> Copy remote director login URL</button>
+ </section>}
  <section className="settings-panel"><div className="setting-icon"><Monitor/></div><h2>OBS Custom Browser Dock</h2><p>The dock is read-only. Scene switching remains in OBS Studio, eliminating accidental remote cuts.</p><Link className="btn secondary" to="/dock"><Monitor size={16}/> Open dock</Link></section>
  </div></>;
 }
@@ -432,8 +438,9 @@ function TallyPage(){
  <div className="tally-camera">{snapshot?`CAM ${String(snapshot.number).padStart(2,'0')}`:'CAMERA'}</div>
  <div className="tally-state-label">{state==='PROGRAM'?'PROGRAM':state==='PREVIEW'?'PREVIEW':state==='IDLE'?snapshot?.name||'NOT SELECTED':state==='RECONNECTING'?'CONNECTION INTERRUPTED':'OBS CONNECTION LOST'}</div>
  {state==='OFFLINE'&&<p className="tally-warning">{error||'Live status is not confirmed. Check connection or pairing.'}</p>}
- </div>{crewProductionId&&cameraId&&<div className="tally-v31-media"><ProgramFeed31 client={supabase} productionId={crewProductionId} compact/></div>}<div className="tally-bottom"><span><span className="status-orb"/> {state==='OFFLINE'?'NO TRUSTED SIGNAL':state==='RECONNECTING'?'RECONNECTING':`${snapshot?.production_name||'Production'} · ${transport?'REALTIME':'POLLING'}`}</span><span>{new Date(clock).toLocaleTimeString()}</span></div><div className="tally-brand-credit"><img src={bumbiLogo} alt="BUMBI"/> Developed by BUMBI Software Solutions</div>
- {crewProductionId&&cameraId&&<TallyMessages31 client={supabase} productionId={crewProductionId} cameraId={cameraId}/>}
+ </div>
+ {crewProductionId&&cameraId&&<TallyMessages31 client={supabase} productionId={crewProductionId} cameraId={cameraId} online={ready}/>}
+ <div className="tally-bottom"><span><span className="status-orb"/> {state==='OFFLINE'?'NO TRUSTED SIGNAL':state==='RECONNECTING'?'RECONNECTING':`${snapshot?.production_name||'Production'} · ${transport?'REALTIME':'POLLING'}`}</span><span>{new Date(clock).toLocaleTimeString()}</span></div><div className="tally-brand-credit"><img src={bumbiLogo} alt="BUMBI"/> Developed by BUMBI Software Solutions</div>
   {settings&&<div className="mobile-settings"><div className="mobile-settings-head"><strong>Camera controls</strong><button className="icon-btn" onClick={()=>setSettings(false)}><X/></button></div>
  <button onClick={()=>void fullscreen()}><Maximize size={18}/> Enter fullscreen</button>
  <button onClick={()=>void wakeScreen()}><Power size={18}/> Keep screen awake {wake?'✓':''}</button>
@@ -494,7 +501,7 @@ function CameraHome(){
  },[]);
  return destination?<Navigate to={destination} replace/>:<div className="loading">Checking camera pairing</div>;
 }
-export default function App(){const {auth,loading}=useIdentity();
+function MainApp(){const {auth,loading}=useIdentity();
  if(!configured)return <div className="auth-layout"><div className="auth-card"><h1>Supabase configuration required</h1><p>Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY and rebuild the frontend. No simulated live statuses are displayed.</p><BrandCredit/></div></div>;
  if(loading)return <div className="loading"><img className="bumbi-loading-logo" src={bumbiLogo} alt="BUMBI Software Solutions"/> OBS TALLY PRO <small>Authenticating</small></div>;
  return <Routes>
@@ -506,4 +513,12 @@ export default function App(){const {auth,loading}=useIdentity();
   <Route path="/dock" element={<Dock/>}/>
   <Route path="/*" element={auth&&['administrator','director'].includes(auth.role)?<Director auth={auth}/>:auth?<CameraHome/>:<Navigate to="/login"/>}/>
  </Routes>;
+}
+
+/** Independent director portal bypasses the shared cameraman/admin auth bootstrap. */
+export default function App(){
+ const location=useLocation();
+ if(location.pathname==='/director'||location.pathname==='/director/login')
+  return <DirectorPortal31/>;
+ return <MainApp/>;
 }
