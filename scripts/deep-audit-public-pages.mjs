@@ -81,6 +81,19 @@ try{
    }finally{await context.close();}
   }
  }
+ // Verify standalone cross-PC director URL and GitHub Pages direct-path redirect.
+ const aliasCtx=await browser.newContext({serviceWorkers:'block'});
+ const aliasPage=await aliasCtx.newPage();
+ for(const alias of ['director.html','director/login']){
+  try{
+   await aliasPage.goto(new URL(alias,base).href,{waitUntil:'domcontentloaded',timeout:30000});
+   await aliasPage.getByRole('heading',{name:'Director Control Panel'}).waitFor({timeout:20000});
+   assert.ok(aliasPage.url().includes('#/director/login'),'Director URL did not redirect to hash login');
+   assert.equal(await aliasPage.locator('video,.program31').count(),0,'Director login unexpectedly displays video');
+   record('Remote director link '+alias,true);
+  }catch(e){record('Remote director link '+alias,false,{error:String(e).slice(0,450)});}
+ }
+ await aliasCtx.close();
  // Additional protected route attempts and public static/PWA health.
  const ctx=await browser.newContext({serviceWorkers:'block'});
  const page=await ctx.newPage();
@@ -92,6 +105,7 @@ try{
   const body=await page.locator('body').innerText();
   assert.ok(body.length>30,'Blank tallies for unauthenticated camera request');
   assert.ok(!/ON AIR\s+LIVE VIDEO/i.test(body),'Unauthenticated tally falsely claims live video');
+  assert.equal(await page.locator('video,.program31,.tally-v31-media').count(),0,'Live video UI still present on cameraman tally');
   record('Unpaired tally route fails closed',true);
  }catch(e){record('Unpaired tally route fails closed',false,{error:String(e).slice(0,450)});}
  try{
