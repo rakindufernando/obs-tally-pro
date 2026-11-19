@@ -1,4 +1,4 @@
-import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
+import {useCallback,useEffect,useMemo,useState} from 'react';
 import type {FormEvent} from 'react';
 import {createClient} from '@supabase/supabase-js';
 import {CrewPanel,HealthPanel,CrewClientProvider31} from './CrewTools';
@@ -26,12 +26,12 @@ export function DirectorPortal31(){
  const [camName,setCamName]=useState('');const [camNumber,setCamNumber]=useState(1);const [camOperator,setCamOperator]=useState('');
  const [sourceKey,setSourceKey]=useState('');const [saving,setSaving]=useState(false);
  const [scene,setScene]=useState('');const [lastSceneCommand,setLastSceneCommand]=useState('');
- const [mediaUrl,setMediaUrl]=useState('');
- const [cameraMedia,setCameraMedia]=useState<Record<string,string>>({});
- const [mediaSaving,setMediaSaving]=useState(false);
  const [scenePending,setScenePending]=useState(false);
- const programMediaDirty=useRef(false);
- const cameraMediaDirty=useRef(new Set<string>());
+ const directorLink=`${window.location.origin}${import.meta.env.BASE_URL}#/director/login`;
+ const copyDirectorLink=async()=>{
+  try{await navigator.clipboard.writeText(directorLink);setNotice('Director login link copied. Open it on any internet-connected PC.');}
+  catch{window.prompt('Copy this director login link',directorLink);}
+ };
  const production=useMemo(()=>productions.find(p=>p.id===productionId),[productions,productionId]);
  const online=Boolean(production?.obs_connected&&production.last_bridge_at&&(clock-new Date(production.last_bridge_at).getTime())<30000);
  const authorized=role==='director';
@@ -39,6 +39,7 @@ export function DirectorPortal31(){
   const {data:{user}}=await directorClient31.auth.getUser();
   if(!user){setUserId('');setRole('');setLoading(false);return;}
   const r=await directorClient31.from('profiles').select('role').eq('id',user.id).maybeSingle();
+  if(r.error){setError('Director profile lookup failed. '+r.error.message);setUserId('');setRole('');setLoading(false);return;}
   const got=r.data?.role||'';if(got!=='director'){
    setRole('');setUserId('');setError('An assigned director account is required. Administrators use the original admin login');
    await directorClient31.auth.signOut();setLoading(false);return;
@@ -64,28 +65,12 @@ export function DirectorPortal31(){
   const id=ps.some(p=>p.id===productionId)?productionId:ps[0]?.id||'';
   if(id!==productionId){setProductionId(id);return;}
   if(!id){setCameras([]);return;}
-  const [cams,media,cameraFeeds]=await Promise.all([
-   directorClient31.from('cameras').select('*,tally_states(*),camera_mappings(*),camera_devices(*)').eq('production_id',id).order('number'),
-   directorClient31.from('production_media_settings').select('whep_url').eq('production_id',id).maybeSingle(),
-   directorClient31.from('director_camera_media').select('camera_id,whep_url').eq('production_id',id)
-  ]);
-  if(cams.error){setError(cams.error.message);return;}
+  const cams=await directorClient31.from('cameras').select('*,tally_states(*),camera_mappings(*),camera_devices(*)').eq('production_id',id).order('number');
+  if(cams.error){setError('Camera sync failed. '+cams.error.message);return;}
   setCameras((cams.data||[]).map((c:any)=>({...c,tally_states:Array.isArray(c.tally_states)?c.tally_states[0]:c.tally_states,
    camera_mappings:c.camera_mappings||[],camera_devices:c.camera_devices||[]})) as Camera[]);
-  if(!media.error&&!programMediaDirty.current)setMediaUrl(media.data?.whep_url||'');
-  if(!cameraFeeds.error)setCameraMedia(previous=>{
-   const persisted=Object.fromEntries((cameraFeeds.data||[]).map(x=>[x.camera_id,x.whep_url]));
-   for(const cid of cameraMediaDirty.current)persisted[cid]=previous[cid]||'';
-   return persisted;
-  });
   setClock(Date.now());
  },[userId,role,productionId,authorized]);
- useEffect(()=>{
-  programMediaDirty.current=false;
-  cameraMediaDirty.current.clear();
-  setMediaUrl('');
-  setCameraMedia({});
- },[productionId]);
  useEffect(()=>{if(!userId)return;
   let active=true;let channel:ReturnType<typeof directorClient31.channel>|null=null;
   void directorClient31.auth.getSession().then(({data})=>{
@@ -145,43 +130,15 @@ export function DirectorPortal31(){
    if(!terminal)setError('No OBS Bridge acknowledgement received yet. Check connection and command status before repeating.');
   }catch(e){setError(msg(e));}finally{setScenePending(false);}
  };
- const saveMedia=async(e:FormEvent)=>{
-  e.preventDefault();if(!production)return;setError('');
-  if(!mediaUrl.trim()){
-   const r=await directorClient31.from('production_media_settings').delete().eq('production_id',production.id);
-   if(r.error)setError(r.error.message);else{programMediaDirty.current=false;setNotice('Program relay removed');}return;
-  }
-  const expected=`/program-${production.id}/whep`;
-  if(!mediaUrl.startsWith('https://')||!mediaUrl.endsWith(expected)){
-   setError('Enter an HTTPS WHEP URL ending in '+expected);return;
-  }
-  const r=await directorClient31.from('production_media_settings').upsert({production_id:production.id,whep_url:mediaUrl.trim(),updated_by:userId,updated_at:new Date().toISOString()});
-  if(r.error)setError(r.error.message);
-  else{programMediaDirty.current=false;setNotice('Program endpoint stored. Live playback still requires an operational authenticated relay and OBS publisher.');}
- };
- const saveCameraMedia=async(cid:string)=>{
-  if(!production||mediaSaving)return;
-  const url=(cameraMedia[cid]||'').trim();
-  setMediaSaving(true);setError('');setNotice('');
-  try{
-   const path=`/camera-${cid}/whep`;
-   if(url&&(!/^https:\/\/[^/?#]+\/camera-[0-9a-f-]{36}\/whep$/.test(url)||new URL(url).pathname!==path))throw new Error('Enter an HTTPS camera WHEP endpoint ending in '+path);
-   const r=url?await directorClient31.from('director_camera_media').upsert({
-    camera_id:cid,production_id:production.id,whep_url:url,updated_by:userId,updated_at:new Date().toISOString()
-   }):await directorClient31.from('director_camera_media').delete().eq('production_id',production.id).eq('camera_id',cid);
-   if(r.error)throw r.error;
-   cameraMediaDirty.current.delete(cid);
-   setNotice(url?'Camera endpoint saved. Playback must still be verified against the media relay.':'Camera endpoint removed');
-  }catch(e){setError(msg(e));}finally{setMediaSaving(false);}
- };
  if(loading)return <main className="director31-login"><p>Checking director authorization</p></main>;
  if(!userId||!authorized)return <main className="director31-login"><div className="director31-auth-card">
   <img src={brand} alt="Original BUMBI logo"/><span className="director31-eyebrow">BUMBI SOFTWARE SOLUTIONS</span>
-  <h1>Director Control Panel</h1><p>Independent director sign-in. An administrator must assign your director profile to a production. Other account sessions remain separate.</p>
+  <h1>Director Control Panel</h1><p>Sign in with the director account assigned to this production. This page works on a different PC and internet connection, without signing in to the streaming computer.</p>
   <form onSubmit={e=>void signIn(e)}><label>Email<input type="email" required autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)}/></label>
    <label>Password<input type="password" required autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)}/></label>
    <button disabled={logging} type="submit">{logging?'Authenticating':'Sign in securely'}</button></form>
   {error&&<p role="alert" className="director31-alert">{error}</p>}
+  <p><strong>Direct access</strong> <a href={directorLink}>{directorLink}</a></p>
   <p className="director31-foot">Developed by BUMBI Software Solutions</p>
  </div></main>;
  const scenes=(production?.obs_sources||[]).filter(s=>s.kind==='SCENE').map(s=>s.name);
@@ -190,13 +147,15 @@ export function DirectorPortal31(){
  const onlineOperators=cameras.flatMap(c=>c.camera_devices.filter(d=>!d.revoked_at&&d.last_seen_at&&clock-new Date(d.last_seen_at).getTime()<90000)).length;
  return <div className="director31-shell">
   <header className="director31-header"><img src={brand} alt="BUMBI"/><div><span className="director31-eyebrow">BROADCAST OPERATIONS</span><h1>Director Control Panel <small>v3.1</small></h1>
-   <p>Developed by BUMBI Software Solutions</p></div><div className="director31-session"><span className={online?'director31-green':'director31-red'}>{online?'OBS CONNECTED':'OBS OFFLINE'}</span>
+   <p>Developed by BUMBI Software Solutions</p></div><div className="director31-session">
+    <button type="button" onClick={()=>void copyDirectorLink()}>Copy director login link</button>
+    <span className={online?'director31-green':'director31-red'}>{online?'OBS CONNECTED':'OBS OFFLINE'}</span>
     <button onClick={()=>void directorClient31.auth.signOut()}>Sign out</button></div></header>
-  <nav className="director31-nav">{([['overview','Overview'],['multiview','Multiview'],['cameras','Cameras & Sources'],['messages','Messages'],['health','Stream Health'],['settings','Settings']] as [Tab,string][]).map(([id,label])=>
+  <nav className="director31-nav">{([['overview','Overview'],['multiview','Camera status grid'],['cameras','Cameras & Sources'],['messages','Messages'],['health','Stream Health'],['settings','Settings']] as [Tab,string][]).map(([id,label])=>
    <button key={id} className={tab===id?'active':''} onClick={()=>setTab(id)}>{label}</button>)}</nav>
   <div className="director31-production"><label>Production <select value={productionId} onChange={e=>setProductionId(e.target.value)}>
    {productions.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
-   <span>{onlineOperators} operator devices recently online</span><button onClick={()=>void refresh()}>Sync now</button></div>
+   <span>{onlineOperators} operator devices recently online</span><span className={online?'director31-green':'director31-red'}>OBS {online?'ONLINE':'DISCONNECTED'}</span><button onClick={()=>void refresh()}>Sync now</button></div>
   {error&&<p className="director31-alert" role="alert">{error}<button onClick={()=>setError('')}>Dismiss</button></p>}
   {notice&&<p className="director31-success" role="status">{notice}<button onClick={()=>setNotice('')}>Dismiss</button></p>}
   {!production?<section className="director31-empty">No production assigned to this director. Ask an administrator to grant production access.</section>:<>
@@ -220,21 +179,16 @@ export function DirectorPortal31(){
    {cameras.map(c=><div className="director31-assignment" key={c.id}><span>CAM {c.number}</span><strong>{c.name}</strong>
     <span>{c.camera_mappings.map(m=>m.kind+' '+m.obs_name).join(' · ')||'Unmapped'}</span><button onClick={()=>edit(c)}>Configure</button></div>)}</section>}
   {tab==='health'&&<HealthPanel stats={production.obs_stats as Record<string,unknown>|undefined} connected={online}/>}
-  {tab==='settings'&&<section className="director31-panel"><h2>Authenticated OBS Program video</h2>
-   <p>Live program video requires a separately deployed HTTPS WHEP relay, such as MediaMTX. The relay must authenticate the Supabase bearer token and restrict access to this production. OBS WebSocket cannot provide continuous video.</p>
-   <form onSubmit={e=>void saveMedia(e)}><label>Protected WHEP endpoint
-    <input type="url" placeholder={`https://relay.example.com/program-${production.id}/whep`} value={mediaUrl} onChange={e=>{programMediaDirty.current=true;setMediaUrl(e.target.value);}}/></label>
-    <button type="submit">Save program endpoint</button></form>
-   <p>No public or unprotected OBS feed should be entered here.</p>
-   <h2>Director-only continuous camera previews</h2>
-   <p>Every camera requires an actual publisher to a private relay path. OBS WebSocket thumbnails cannot act as continuous live video. Only configured streams are shown.</p>
-   {cameras.map(c=><div key={c.id} className="director31-camera-media">
-    <label>CAM {c.number} · {c.name} HTTPS WHEP endpoint
-     <input type="url" placeholder={`https://relay.example.com/camera-${c.id}/whep`}
-      value={cameraMedia[c.id]||''} onChange={e=>{cameraMediaDirty.current.add(c.id);setCameraMedia(old=>({...old,[c.id]:e.target.value}));}}/></label>
-    <button type="button" disabled={mediaSaving} onClick={()=>void saveCameraMedia(c.id)}>Save camera endpoint</button>
-   </div>)}
-   <p>Configure authenticated MediaMTX publication and per-camera source feeds independently of tally settings. Camera pairing and OBS mapping records are preserved.</p>
+  {tab==='settings'&&<section className="director31-panel">
+   <h2>Director remote access</h2>
+   <p>Use this secure director link from another PC or internet network. A director account and production assignment are required. OBS stays connected through the existing Bridge on the streaming computer.</p>
+   <div className="director31-access-tools"><input type="text" readOnly aria-label="Director remote login address" value={directorLink}/>
+    <button type="button" onClick={()=>void copyDirectorLink()}>Copy link</button></div>
+   <h2>OBS connection and camera control</h2>
+   <p>Bridge status <strong>{online?'CONNECTED':'OFFLINE'}</strong>. Last Bridge update {production.last_bridge_at?new Date(production.last_bridge_at).toLocaleString():'not received'}.</p>
+   <p>Production scene <strong>{production.program_scene||'Not reported'}</strong>. Detected sources <strong>{sources.length}</strong>.</p>
+   <p>Messages are automatically removed after OBS disconnects or after 45 minutes. Directors can delete any message or clear the entire conversation using the Messages page.</p>
+   <p>No microphone or live video feeds are required. Tally status, source assignments, scene switching, messaging, and stream health use Supabase and the existing OBS Bridge.</p>
   </section>}
   </>}
   {cameraEditing!==undefined&&production&&<div className="director31-modal-bg" role="dialog" aria-modal="true"><form onSubmit={e=>void saveCamera(e)} className="director31-modal">
