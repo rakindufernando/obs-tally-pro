@@ -10,7 +10,6 @@ import {freshness} from '@tally/shared';
 import {supabase,configured,unwrap} from './client';
 import {CrewPanel,HealthPanel} from './CrewTools';
 import {DirectorPortal31} from './DirectorPortal31';
-import {ProgramFeed31} from './ProgramFeed31';
 import {TallyMessages31} from './TallyMessages31';
 import type {CameraRow,CameraSnapshot,Production} from './client';
 
@@ -56,7 +55,8 @@ function Login(){
   <label>Password<input type="password" autoComplete="current-password" required value={password} onChange={e=>setPassword(e.target.value)} placeholder="Your password"/></label>
   {error&&<div className="error"><AlertTriangle size={16}/>{error}</div>}
   <button disabled={working} className="btn full" type="submit">{working?'Signing in…':'Sign in securely'} <ArrowRight size={17}/></button></form>
-  <p className="auth-foot">Administrator provisioning is performed once using Supabase Auth and the setup SQL in the README.</p><BrandCredit/>
+  <p className="auth-foot">Administrator provisioning is performed once using Supabase Auth and the setup SQL in the README.</p>
+  <p className="director-access-link"><Link to="/director/login">Director login on another computer</Link></p><BrandCredit/>
  </div></div>;
 }
 const navItems=[['/dashboard','Overview',Monitor],['/cameras','Cameras',Camera],['/mapping','OBS mapping',Film],
@@ -432,7 +432,7 @@ function TallyPage(){
  <div className="tally-camera">{snapshot?`CAM ${String(snapshot.number).padStart(2,'0')}`:'CAMERA'}</div>
  <div className="tally-state-label">{state==='PROGRAM'?'PROGRAM':state==='PREVIEW'?'PREVIEW':state==='IDLE'?snapshot?.name||'NOT SELECTED':state==='RECONNECTING'?'CONNECTION INTERRUPTED':'OBS CONNECTION LOST'}</div>
  {state==='OFFLINE'&&<p className="tally-warning">{error||'Live status is not confirmed. Check connection or pairing.'}</p>}
- </div>{crewProductionId&&cameraId&&<div className="tally-v31-media"><ProgramFeed31 client={supabase} productionId={crewProductionId} compact/></div>}<div className="tally-bottom"><span><span className="status-orb"/> {state==='OFFLINE'?'NO TRUSTED SIGNAL':state==='RECONNECTING'?'RECONNECTING':`${snapshot?.production_name||'Production'} · ${transport?'REALTIME':'POLLING'}`}</span><span>{new Date(clock).toLocaleTimeString()}</span></div><div className="tally-brand-credit"><img src={bumbiLogo} alt="BUMBI"/> Developed by BUMBI Software Solutions</div>
+ </div><div className="tally-bottom"><span><span className="status-orb"/> {state==='OFFLINE'?'NO TRUSTED SIGNAL':state==='RECONNECTING'?'RECONNECTING':`${snapshot?.production_name||'Production'} · ${transport?'REALTIME':'POLLING'}`}</span><span>{new Date(clock).toLocaleTimeString()}</span></div><div className="tally-brand-credit"><img src={bumbiLogo} alt="BUMBI"/> Developed by BUMBI Software Solutions</div>
  {crewProductionId&&cameraId&&<TallyMessages31 client={supabase} productionId={crewProductionId} cameraId={cameraId}/>}
   {settings&&<div className="mobile-settings"><div className="mobile-settings-head"><strong>Camera controls</strong><button className="icon-btn" onClick={()=>setSettings(false)}><X/></button></div>
  <button onClick={()=>void fullscreen()}><Maximize size={18}/> Enter fullscreen</button>
