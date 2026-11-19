@@ -28,6 +28,7 @@ try{
     await page.getByRole('heading',{name:route.heading}).first().waitFor({timeout:20000});
     if(route.redirect)assert.ok(page.url().includes('#/'+route.redirect),`Expected guest redirect to ${route.redirect}`);
     if(route.selector)await page.locator(route.selector).first().waitFor({timeout:10000});
+    await page.waitForFunction(()=>Array.from(document.images).every(img=>img.complete),{},{timeout:12000});
     assert.equal(errors.length,0,`Uncaught browser errors ${errors.join(' | ')}`);
     const sizing=await page.evaluate(()=>({
      viewport:window.innerWidth,scrollWidth:document.documentElement.scrollWidth,
