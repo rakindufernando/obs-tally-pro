@@ -1,5 +1,5 @@
 {
- "name":"obs-tally-pro-cloud", "version":"3.1.0", "private":true,
+ "name":"obs-tally-pro-cloud", "version":"3.1.1", "private":true,
  "workspaces":["apps/*","packages/*"],
  "scripts":{
    "dev":"npm run dev -w @tally/web",

@@ -3,7 +3,7 @@ OBS TALLY PRO | BUMBI Software Solutions
 
 INSTALL ON WINDOWS 10 OR WINDOWS 11 (64-bit)
 
-1. Open BUMBI-OBS-TALLY-PRO-Setup-v3.1.0.exe from the verified private distribution package.
+1. Open BUMBI-OBS-TALLY-PRO-Setup-v3.1.1.exe from the verified private distribution package.
 2. Follow the installer. A Start Menu shortcut is created, and an optional desktop shortcut.
 3. Open OBS Studio -> Tools -> WebSocket Server Settings.
    Enable server, set a strong authentication password. Default port 4455.
