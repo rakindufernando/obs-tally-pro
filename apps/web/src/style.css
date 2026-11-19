@@ -302,3 +302,68 @@ body{background:#07090e}
 .director31-camera-media{display:flex;align-items:flex-end;flex-wrap:wrap;gap:10px;border-top:1px solid #354858;padding:13px 0}
 .director31-camera-media label{flex:1;min-width:190px}
 .tally-message31-error{color:#ffbbc6;pointer-events:auto;background:#141b28;padding:8px;border-radius:8px}
+
+
+/* OBS TALLY PRO 3.1.1. Tally messages are part of the page flow, never floating over the tally. */
+.tally-screen31>.tally-message31{
+ position:relative!important;inset:auto!important;left:auto!important;right:auto!important;
+ bottom:auto!important;z-index:2;width:min(95%,640px);max-width:640px;
+ padding:4px 0;margin:6px auto 12px;flex:0 0 auto;pointer-events:auto!important
+}
+.tally-message31-toolbar{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap}
+.tally-message31-toolbar button{background:#102736;border:1px solid #5f9c9b;border-radius:10px;
+ color:#fff;padding:9px 12px;min-height:38px;font-size:12px;font-weight:800;cursor:pointer}
+.tally-message31-toolbar .tally-message31-ack-all{background:#125444;border-color:#35bc97}
+.tally-message31-toolbar strong{background:#ce344e;padding:3px 7px;border-radius:12px;margin-left:6px}
+.tally-message31-toolbar span{opacity:.8;margin-left:6px}
+.tally-screen31 .tally-message31-banner,.tally-screen31 .tally-message31-history{
+ position:relative;inset:auto;max-height:min(34vh,260px);width:100%;margin:0 0 8px;
+ overflow-y:auto;box-sizing:border;padding:10px 12px;box-shadow:0 6px 24px #0006
+}
+.tally-screen31 .tally-message31-banner{border:1px solid #42d3bc;background:#142b30}
+.tally-screen31 .tally-message31-banner.urgent{border:2px solid #f77687;background:#38202e}
+.tally-message31-heading{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.tally-message31-heading strong{font-size:11px;letter-spacing:.04em}
+.tally-message31-heading time{font-size:11px;color:#e3ced5;white-space:nowrap}
+.tally-screen31 .tally-message31-banner p{margin:9px 0 11px;font-weight:800;font-size:clamp(15px,3.6vw,19px);line-height:1.35}
+.tally-message31-controls{display:flex;gap:8px;flex-wrap:wrap}
+.tally-screen31 .tally-message31-controls button,.tally-screen31 .tally-message31-history button{
+ flex:0 0 auto;margin:0;padding:8px 10px;border:1px solid #548896;background:#20576d;border-radius:8px;
+ font-weight:800;font-size:12px;min-height:36px;color:#fff
+}
+.tally-screen31 .tally-message31-controls button:first-child{background:#13694e;border-color:#35ad84}
+.tally-screen31 .tally-message31-history{max-height:min(40vh,330px);border:1px solid #3e6471;background:#101e29}
+.tally-screen31 .tally-message31-history article{margin-top:8px}
+.tally-screen31 .tally-message31-history article p{margin:7px 0}
+.tally-screen31 .tally-message31-history label{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tally-screen31 .tally-message31-history select{min-height:30px}
+.tally-screen31 .tally-message31-error{margin:5px 0;font-size:12px}
+.tally-screen31 .tally-center{flex:0 0 auto}
+.tally-screen31 .tally-bottom{position:relative;bottom:auto;margin-top:auto;width:100%;z-index:1}
+.tally-screen31 .tally-brand-credit{position:relative;bottom:auto;margin:6px auto 12px}
+.crew-state-preview{aspect-ratio:16/7;min-height:104px;background:#192331;
+ display:flex;align-items:center;justify-content:center;flex-direction:column;gap:9px;color:#dbe5f2}
+.crew-state-preview strong{font-size:clamp(15px,2.4vw,23px);letter-spacing:.05em}
+.crew-state-orb{display:block;width:29px;height:29px;border-radius:50%;background:#718096;border:5px solid #ffffff40}
+.crew-state-live{background:#581c27;color:white}.crew-state-live .crew-state-orb{background:#ff405c;box-shadow:0 0 20px #fd456b}
+.crew-state-standby{background:#0c4736;color:white}.crew-state-standby .crew-state-orb{background:#17d68a;box-shadow:0 0 20px #32c98a}
+.crew-state-idle{background:#152335}.crew-state-offline{background:#191f2a;color:#b2bdc9}
+.crew-recipient-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:7px;margin:12px 0}
+.crew-recipient-grid label{display:flex;align-items:center;gap:8px;padding:9px;background:#162b36;border:1px solid #365e68;border-radius:8px;font-size:13px}
+.crew-recipient-grid input{width:16px;height:16px;flex:none;accent-color:#22b992}
+.crew-message-actions{display:flex;gap:8px;flex-wrap:wrap}
+.crew-delete-one,.crew-delete-all{background:#542331!important;color:#ffcbd2!important;border:1px solid #9a4d62!important}
+.crew-delete-one{margin:8px 0 0;padding:5px 9px!important;font-size:11px!important}
+.crew-panel .crew-message-list{scrollbar-width:thin}
+.director-access-link{margin-top:15px;text-align:center;font-weight:750}
+.director-access-link a,.director31-auth-card a{color:#68e5c8;overflow-wrap:anywhere}
+.director31-access-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:14px 0 24px}
+.director31-access-tools input{flex:1;min-width:min(100%,220px)}
+.director31-access-tools button{flex-shrink:0}
+@media(max-width:540px){
+ .tally-screen31>.tally-message31{width:calc(100% - 22px);margin:5px auto 9px}
+ .tally-screen31 .tally-message31-banner,.tally-screen31 .tally-message31-history{max-height:32vh;padding:10px}
+ .tally-screen31 .tally-center{min-height:175px;padding:8px 10px 7px}
+ .tally-screen31 .tally-headline{font-size:clamp(34px,9vw,58px)}
+ .director31-session button{font-size:11px;padding:7px 8px}
+}
