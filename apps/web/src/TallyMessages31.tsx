@@ -1,76 +1,78 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
 import type {SupabaseClient} from '@supabase/supabase-js';
 
-type Msg={id:string;sender_id:string;body:string;quick_command:boolean;target_camera_ids:string[];created_at:string;audience:string};
+type Message={id:string;body:string;quick_command:boolean;target_camera_ids:string[];created_at:string};
+type Props={client:SupabaseClient;productionId:string;cameraId:string;online:boolean};
 
-/** The main tally surface always listens. Acknowledgements are server-side and survive refreshes. */
-export function TallyMessages31({client,productionId,cameraId}:{client:SupabaseClient;productionId:string;cameraId:string}){
- const [current,setCurrent]=useState<Msg|null>(null);
- const [all,setAll]=useState<Msg[]>([]);
- const [acknowledged,setAcknowledged]=useState<Set<string>>(new Set());
- const [unread,setUnread]=useState(0);
- const [error,setError]=useState('');
+/** Compact, in-flow tally alerts. No camera video, microphone or long-term history. */
+export function TallyMessages31({client,productionId,cameraId,online}:Props){
+ const [messages,setMessages]=useState<Message[]>([]);
+ const [readIds,setReadIds]=useState<Set<string>>(new Set());
+ const [current,setCurrent]=useState<Message|null>(null);
  const [expanded,setExpanded]=useState(false);
+ const [error,setError]=useState('');
+ const [busy,setBusy]=useState(false);
  const [duration,setDuration]=useState(Number(localStorage.getItem('bumbi-message-duration-31')||15));
  const active=useRef(false);
- const notified=useRef(new Set<string>());
- const inFlight=useRef(false);
  const ignored=useRef(new Set<string>());
- const load=useCallback(async()=>{
-  if(inFlight.current)return;
-  inFlight.current=true;
+ const announced=useRef(new Set<string>());
+ const loading=useRef(false);
+ const sync=useCallback(async()=>{
+  if(loading.current)return;
+  loading.current=true;
   try{
-   const [messages,session]=await Promise.all([
-    client.from('operator_messages').select('id,sender_id,body,quick_command,target_camera_ids,created_at,audience')
-     .eq('production_id',productionId).eq('audience','crew').order('created_at',{ascending:false}).limit(90),
+   const [items,user]=await Promise.all([
+    client.from('operator_messages').select('id,body,quick_command,target_camera_ids,created_at')
+     .eq('production_id',productionId).eq('audience','crew').order('created_at',{ascending:false}).limit(60),
     client.auth.getUser()
    ]);
-   if(messages.error)throw messages.error;
-   const uid=session.data.user?.id;
-   const rows=((messages.data||[]) as Msg[]).filter(m=>!m.target_camera_ids?.length||m.target_camera_ids.includes(cameraId));
-   const ids=rows.map(m=>m.id);
-   let reads:string[]=[];
-   if(uid&&ids.length){
-    const read=await client.from('operator_message_reads').select('message_id')
-     .eq('reader_id',uid).in('message_id',ids);
-    if(read.error)throw read.error;
-    reads=(read.data||[]).map(r=>r.message_id as string);
+   if(items.error)throw items.error;
+   if(user.error)throw user.error;
+   const rows=((items.data||[]) as Message[]).filter(m=>
+    !m.target_camera_ids.length||m.target_camera_ids.includes(cameraId));
+   let ack:string[]=[];
+   if(user.data.user&&rows.length){
+    const result=await client.from('operator_message_reads').select('message_id')
+      .eq('reader_id',user.data.user.id).in('message_id',rows.map(m=>m.id));
+    if(result.error)throw result.error;
+    ack=(result.data||[]).map(v=>v.message_id);
    }
    if(!active.current)return;
-   const known=new Set(reads);
-   setAcknowledged(known);setAll(rows);
-   setUnread(rows.filter(m=>!known.has(m.id)).length);
-   const newest=rows.find(m=>!known.has(m.id)&&!ignored.current.has(m.id));
-   if(newest){
-    setCurrent(prev=>prev?.id===newest.id?prev:newest);
-    if(!notified.current.has(newest.id)){
-     notified.current.add(newest.id);
-     if(newest.quick_command){try{navigator.vibrate?.([120,70,120]);}catch{/* Unsupported device */}}
-    }
-   }else setCurrent(null);
+   const known=new Set(ack);
+   const currentIds=new Set(rows.map(m=>m.id));
+   for(const id of ignored.current)if(!currentIds.has(id))ignored.current.delete(id);
+   setMessages(rows);setReadIds(known);
+   const pending=rows.find(m=>!known.has(m.id)&&!ignored.current.has(m.id));
+   setCurrent(online?pending||null:null);
+   if(pending&&!announced.current.has(pending.id)){
+    announced.current.add(pending.id);
+    if(pending.quick_command&&online)try{navigator.vibrate?.([100,60,100]);}catch{/* Browser support varies */}
+   }
    setError('');
   }catch(e){if(active.current)setError(e instanceof Error?e.message:String(e));}
-  finally{inFlight.current=false;}
- },[client,productionId,cameraId]);
+  finally{loading.current=false;}
+ },[client,productionId,cameraId,online]);
  useEffect(()=>{
-  active.current=true;ignored.current.clear();notified.current.clear();
-  let ch:ReturnType<typeof client.channel>|null=null;
-  void load();
+  active.current=true;ignored.current.clear();announced.current.clear();
+  let channel:ReturnType<typeof client.channel>|null=null;
+  void sync();
   void client.auth.getSession().then(({data})=>{
    if(!active.current||!data.session)return;
    client.realtime.setAuth(data.session.access_token);
-   ch=client.channel(`ops:${productionId}`,{config:{private:true}})
-    .on('broadcast',{event:'message'},()=>void load())
+   channel=client.channel(`ops:${productionId}`,{config:{private:true}})
+    .on('broadcast',{event:'message'},()=>void sync())
+    .on('postgres_changes',{event:'*',schema:'public',table:'operator_messages',filter:`production_id=eq.${productionId}`},()=>void sync())
     .subscribe();
   });
-  const timer=setInterval(()=>void load(),6000);
-  const online=()=>void load();
-  const resume=()=>{if(document.visibilityState==='visible')void load();};
-  window.addEventListener('online',online);
-  document.addEventListener('visibilitychange',resume);
-  return()=>{active.current=false;clearInterval(timer);window.removeEventListener('online',online);
-   document.removeEventListener('visibilitychange',resume);if(ch)void client.removeChannel(ch);};
- },[client,productionId,cameraId,load]);
+  const timer=setInterval(()=>void sync(),3000);
+  const resume=()=>{if(document.visibilityState==='visible')void sync();};
+  window.addEventListener('online',resume);document.addEventListener('visibilitychange',resume);
+  return()=>{active.current=false;clearInterval(timer);window.removeEventListener('online',resume);
+   document.removeEventListener('visibilitychange',resume);if(channel)void client.removeChannel(channel);};
+ },[client,productionId,cameraId,sync]);
+ useEffect(()=>{
+  if(!online)setCurrent(null);
+ },[online]);
  useEffect(()=>{
   if(!current)return;
   const timer=setTimeout(()=>{
@@ -79,32 +81,48 @@ export function TallyMessages31({client,productionId,cameraId}:{client:SupabaseC
   },Math.max(6,Math.min(60,duration))*1000);
   return()=>clearTimeout(timer);
  },[current,duration]);
+ const unread=online?messages.filter(m=>!readIds.has(m.id)).length:0;
  const acknowledge=async(id:string)=>{
+  setBusy(true);setError('');
   const result=await client.rpc('mark_operator_message_read',{mid:id});
-  if(result.error){setError(result.error.message);return;}
-  ignored.current.add(id);
-  setAcknowledged(prev=>new Set([...prev,id]));
-  setCurrent(prev=>prev?.id===id?null:prev);
-  void load();
+  if(result.error)setError(result.error.message);
+  else{
+   ignored.current.add(id);
+   setReadIds(old=>new Set([...old,id]));
+   setCurrent(m=>m?.id===id?null:m);
+   await sync();
+  }
+  setBusy(false);
  };
- const hide=()=>{if(current){ignored.current.add(current.id);setCurrent(null);}};
- return <div className="tally-message31">
-  {current&&<aside className={`tally-message31-banner ${current.quick_command?'urgent':''}`} role="alert" aria-live="assertive">
-   <div><strong>{current.quick_command?'URGENT DIRECTOR INSTRUCTION':'DIRECTOR MESSAGE'}</strong>
-    <span>{new Date(current.created_at).toLocaleTimeString()}</span></div>
-   <p>{current.body}</p><div><button onClick={()=>void acknowledge(current.id)}>ACKNOWLEDGE</button>
-    <button onClick={hide}>Hide</button></div>
+ const acknowledgeAll=async()=>{
+  setBusy(true);setError('');
+  const result=await client.rpc('acknowledge_camera_messages',{pid:productionId,cid:cameraId});
+  if(result.error)setError(result.error.message);
+  else{setCurrent(null);messages.forEach(m=>ignored.current.add(m.id));await sync();}
+  setBusy(false);
+ };
+ return <section className="tally-message31" aria-label="Director messages">
+  {online&&current&&<aside className={`tally-message31-banner ${current.quick_command?'urgent':''}`} role="alert" aria-live={current.quick_command?'assertive':'polite'}>
+   <div className="tally-message31-heading"><strong>{current.quick_command?'URGENT DIRECTOR MESSAGE':'DIRECTOR MESSAGE'}</strong><time>{new Date(current.created_at).toLocaleTimeString()}</time></div>
+   <p>{current.body}</p>
+   <div className="tally-message31-controls"><button disabled={busy} onClick={()=>void acknowledge(current.id)}>ACKNOWLEDGE</button>
+    <button disabled={busy} onClick={()=>{ignored.current.add(current.id);setCurrent(null);}}>Hide</button></div>
   </aside>}
-  <button type="button" className="tally-message31-toggle" onClick={()=>setExpanded(x=>!x)}>
-   Director messages {unread>0?<strong>{unread} unread</strong>:<span>All acknowledged</span>}
+  <div className="tally-message31-toolbar"><button className="tally-message31-toggle" onClick={()=>setExpanded(x=>!x)}>
+   Director messages {unread>0?<strong>{unread} unread</strong>:<span>{online?'Up to date':'OBS offline'}</span>}
   </button>
-  {expanded&&<div className="tally-message31-history"><h3>Director instructions</h3>
+  {online&&unread>0&&<button className="tally-message31-ack-all" disabled={busy} onClick={()=>void acknowledgeAll()}>Acknowledge all</button>}</div>
+  {expanded&&<div className="tally-message31-history">
+   <div className="tally-message31-heading"><strong>Recent instructions</strong><button onClick={()=>setExpanded(false)}>Close</button></div>
    <label>Banner duration <select value={duration} onChange={e=>{setDuration(Number(e.target.value));localStorage.setItem('bumbi-message-duration-31',e.target.value);}}>
     <option value={8}>8 seconds</option><option value={15}>15 seconds</option><option value={30}>30 seconds</option><option value={60}>60 seconds</option></select></label>
-   {all.map(m=><article key={m.id}><strong>{m.quick_command?'URGENT':'DIRECTOR'} · {new Date(m.created_at).toLocaleString()}</strong>
-    <p>{m.body}</p><button type="button" disabled={acknowledged.has(m.id)} onClick={()=>void acknowledge(m.id)}>{acknowledged.has(m.id)?'Acknowledged':'Acknowledge'}</button></article>)}
-   {!all.length&&<p>No director messages yet</p>}{error&&<p role="alert">{error}</p>}
+   {messages.map(m=><article key={m.id}>
+    <strong>{m.quick_command?'URGENT':'Director'} · {new Date(m.created_at).toLocaleTimeString()}</strong>
+    <p>{m.body}</p>
+    <button disabled={busy||readIds.has(m.id)} onClick={()=>void acknowledge(m.id)}>{readIds.has(m.id)?'Acknowledged':'Acknowledge'}</button>
+   </article>)}
+   {!messages.length&&<p>No active director instructions</p>}
   </div>}
-  {error&&!expanded&&<p role="status" className="tally-message31-error">{error}</p>}
- </div>;
+  {error&&<p className="tally-message31-error" role="alert">{error}</p>}
+ </section>;
 }
