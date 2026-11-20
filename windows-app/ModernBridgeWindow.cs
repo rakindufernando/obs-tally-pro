@@ -173,6 +173,8 @@ namespace BumbiTally
             var open=B("OPEN DASHBOARD",PANEL2,Color.White,52);open.SetBounds(405,57,202,52);open.Click+=(s,e)=>Open("#/dashboard");action.Controls.Add(open);
             var camera=B("ADD CAMERA",PANEL2,Color.White,52);camera.SetBounds(617,57,151,52);camera.Click+=(s,e)=>Open("#/cameras");action.Controls.Add(camera);
             var trayButton=B("TO TRAY",PANEL2,Color.White,52);trayButton.SetBounds(778,57,136,52);trayButton.Click+=(s,e)=>{Hide();Log("Minimized to tray. To stop all background operations choose STOP ALL & EXIT.");};action.Controls.Add(trayButton);
+            var obsSettings=B("OBS CONNECTION SETTINGS",PANEL2,Color.White,34);obsSettings.SetBounds(20,122,286,34);obsSettings.Click+=(s,e)=>Configure();action.Controls.Add(obsSettings);
+            var testPort=B("TEST OBS PORT",PANEL2,Color.White,34);testPort.SetBounds(320,122,225,34);testPort.Click+=(s,e)=>CheckPort();action.Controls.Add(testPort);
             runMode=L("Live tally status is calculated from OBS, not simulated.",25,555,920,26,10,false,MUTED);mainStatus.Controls.Add(runMode);
             mainStatus.Controls.Add(L(Program.Developer,25,600,910,25,9,true,MUTED));
         }
@@ -211,7 +213,7 @@ namespace BumbiTally
             var c=B("PHONE PAIRING",PANEL2,Color.White,53);c.SetBounds(598,329,280,53);c.Click+=(s,e)=>Open("#/devices");settingsPane.Controls.Add(c);
             settingsPane.Controls.Add(L("Other streaming computer? Install this program there, connect OBS, then register it using a new director code.",24,408,927,56,11,false,MUTED));
             var register=B("REGISTER / MOVE THIS PC",PANEL2,Color.White,50);register.SetBounds(24,488,298,50);register.Click+=(s,e)=>Register();settingsPane.Controls.Add(register);
-            var setting=B("CHANGE OBS PASSWORD",PANEL2,Color.White,50);setting.SetBounds(335,488,286,50);setting.Click+=(s,e)=>Configure();settingsPane.Controls.Add(setting);
+            var setting=B("OBS CONNECTION SETTINGS",PANEL2,Color.White,50);setting.SetBounds(335,488,286,50);setting.Click+=(s,e)=>Configure();settingsPane.Controls.Add(setting);
             settingsPane.Controls.Add(L(Program.Developer,24,615,920,25,9,true,MUTED));
         }
         void BuildDiagnostics()
@@ -377,6 +379,7 @@ namespace BumbiTally
         {
             UpdateControls();
             bool fresh=false,connected=false,cloud=false,streaming=false,recording=false;
+            string connectionIssue="";
             long streamMs=0,recordMs=0;
             if(File.Exists(StatusFile))try{
                 var file=File.ReadAllText(StatusFile,Encoding.UTF8);
@@ -385,6 +388,7 @@ namespace BumbiTally
                 fresh=DateTime.TryParse(when,null,System.Globalization.DateTimeStyles.AdjustToUniversal|System.Globalization.DateTimeStyles.AssumeUniversal,out at)&&(DateTime.UtcNow-at.ToUniversalTime()).TotalSeconds<=15;
                 if(fresh){
                     connected=IsTrue(JsonValue(data,"obs_connected"));cloud=IsTrue(JsonValue(data,"cloud_connected"));
+                    connectionIssue=Str(JsonValue(data,"obs_error"),"");
                     streaming=IsTrue(JsonValue(data,"stream","active"));recording=IsTrue(JsonValue(data,"record","active"));
                     streamMs=(long)Num(JsonValue(data,"stream","duration_ms"));recordMs=(long)Num(JsonValue(data,"record","duration_ms"));
                     var extra=(long)Math.Max(0,(DateTime.UtcNow-at.ToUniversalTime()).TotalMilliseconds);
@@ -399,13 +403,15 @@ namespace BumbiTally
                     var sources=JsonValue(data,"sources") as System.Collections.IList;sourceCount.Text=sources!=null?sources.Count.ToString():"—";
                 }
             }catch(Exception e){if(e.Message!=lastObsMessage){lastObsMessage=e.Message;Log("Status refresh unavailable: "+e.Message);}}
-            obsStatus.Text=connected?"CONNECTED":(bridge!=null&&!bridge.HasExited?"CONNECTING":"OFFLINE");obsStatus.ForeColor=connected?ACCENT:YELLOW;
+            obsStatus.Text=connected?"CONNECTED":(bridge!=null&&!bridge.HasExited?(connectionIssue.Length>0?"RETRYING":"CONNECTING"):"OFFLINE");obsStatus.ForeColor=connected?ACCENT:YELLOW;
             cloudStatus.Text=cloud?"SYNCHRONIZED":(bridge!=null&&!bridge.HasExited?"CONNECTING":"OFFLINE");cloudStatus.ForeColor=cloud?CYAN:YELLOW;
             streamTime.Text=streaming?PrettyMs(streamMs):"00:00:00";streamTime.ForeColor=streaming?RED:MUTED;
             recordTime.Text=recording?PrettyMs(recordMs):"00:00:00";recordTime.ForeColor=recording?ACCENT:MUTED;
             if(!fresh){programScene.Text="PROGRAM  ·  SIGNAL UNAVAILABLE";previewScene.Text="PREVIEW  ·  SIGNAL UNAVAILABLE";
                 cpuValue.Text=fpsValue.Text=memValue.Text=droppedValue.Text=freeSpace.Text=sourceCount.Text="—";}
-            runMode.Text=connected?"OBS is synchronized. Program and Preview are updated securely.":"Open OBS Studio, check WebSocket authentication, and keep the Bridge running.";
+            runMode.Text=connected?"OBS synchronized. Program and Preview are updated securely.":
+                (connectionIssue.Length>0?connectionIssue:"Open OBS Studio, enable WebSocket and check the address/password.");
+            runMode.ForeColor=connected?ACCENT:YELLOW;
         }
     }
 }
