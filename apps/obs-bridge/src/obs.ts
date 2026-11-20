@@ -12,12 +12,32 @@ const readSceneName=(value:unknown,legacyKey:'currentProgramSceneName'|'currentP
   return typeof name==='string'&&name.length>0?name:null;
 };
 const wait=(ms:number)=>new Promise(r=>setTimeout(r,ms));
+/** Tell operators what to fix without exposing OBS credentials or raw connection payloads. */
+export function describeOBSConnectionFailure(error:unknown):string{
+ const err=error as {code?:unknown;message?:unknown};
+ const code=typeof err?.code==='number'?err.code:null;
+ const message=typeof err?.message==='string'?err.message.toLowerCase():'';
+ if(code===4009||/auth(entication)? failed|invalid password|unauthori[sz]ed/.test(message))
+   return 'OBS authentication failed. Copy the WebSocket password from OBS Tools > WebSocket Server Settings.';
+ if(code===4010||/unsupported.*rpc|incompatible.*protocol|invalid.*rpc/.test(message))
+   return 'OBS WebSocket protocol mismatch. Use OBS Studio 28 or newer with built-in WebSocket 5.x.';
+ if(/econnrefused|connection refused|net::err_connection_refused|connect refused/.test(message))
+   return 'OBS WebSocket port refused the connection. Enable WebSocket Server in OBS Tools and verify port 4455.';
+ if(/enotfound|getaddrinfo|dns|host not found/.test(message))
+   return 'OBS WebSocket host cannot be resolved. On the OBS PC, use ws://127.0.0.1:4455.';
+ if(/timed? ?out|etimedout|abort/.test(message))
+   return 'OBS WebSocket did not respond. Check its port and Windows firewall, then retry.';
+ if(/certificate|self.signed|tls|ssl/.test(message))
+   return 'OBS WebSocket TLS could not be verified. Use ws://127.0.0.1:4455 for local OBS.';
+ return 'OBS WebSocket is not connected. Check OBS Tools > WebSocket Server Settings and the saved password.';
+}
 export class OBSConnector {
  private obs=new OBSWebSocket();
  private lastStreamSample:{bytes:number;at:number;duration:number}|null=null;
  private connected=false;
  private active=true;
  private reconnectAttempts=0;
+ private connectionIssue='Waiting for OBS WebSocket. Check the server and password in OBS Studio.';
  private pending=false;
  private structureDirty=true;
  private treeCache=new Map<string,TreeItem[]>();
@@ -74,6 +94,7 @@ export class OBSConnector {
  private onDisconnected(){
    if(!this.connected)return;
    this.connected=false;this.transitionFrom=null;this.lastProgram=null;this.structureDirty=true;this.treeCache.clear();
+   this.connectionIssue='OBS WebSocket connection was lost. Reconnecting automatically.';
    this.snapshot={connected:false,studioMode:false,program:null,preview:null,scenes:{},sceneUuids:{},streaming:false,recording:false};
    this.onUpdate(this.snapshot);
    console.warn('OBS connection lost; all tally cameras are now untrusted');
@@ -84,11 +105,13 @@ export class OBSConnector {
      try{
        await this.obs.connect(this.url,this.password||undefined,{rpcVersion:1});
        this.connected=true;this.reconnectAttempts=0;this.structureDirty=true;this.treeCache.clear();
+       this.connectionIssue='';
        console.log('OBS WebSocket connected');
        await this.sync();
      }catch(e){
        this.onDisconnected();
-       console.warn('OBS unavailable or authentication failed',e instanceof Error?e.message:'unknown');
+       this.connectionIssue=describeOBSConnectionFailure(e);
+       console.warn('OBS connection failed:',this.connectionIssue);
        await wait(Math.min(30_000,1000*2**Math.min(5,this.reconnectAttempts++)));
      }
    }
@@ -176,7 +199,9 @@ export class OBSConnector {
      }
    }
    if(!this.connected||stream.active!==true)this.lastStreamSample=null;
-   return {observed_at:new Date().toISOString(),obs_connected:this.connected,studio_mode:snapshot.studioMode,
+   return {observed_at:new Date().toISOString(),obs_connected:this.connected,
+     obs_error:this.connected?null:this.connectionIssue,obs_reconnect_attempts:this.reconnectAttempts,
+     studio_mode:snapshot.studioMode,
      program_scene:snapshot.program,preview_scene:snapshot.preview,streaming:stream.active,recording:record.active,
      source_count:sourceMap.size,scene_count:Object.keys(snapshot.scenes).length,
      sources:[...sourceMap.values()].slice(0,350),stats,stream,record};
