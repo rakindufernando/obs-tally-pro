@@ -170,7 +170,7 @@ namespace BumbiTally
             Controls.Add(Program.Label("Configure the WebSocket server on this Windows PC.",30,63,515,25,10,false,Program.Muted));
             Controls.Add(Program.Label("OBS WebSocket address",30,110,500,22,10,true,Color.White));
             urlBox=Input(30,134,520,false);urlBox.Text=prior == null ? "ws://127.0.0.1:4455" : prior.obsUrl;Controls.Add(urlBox);
-            Controls.Add(Program.Label("OBS WebSocket password",30,191,500,22,10,true,Color.White));
+            Controls.Add(Program.Label("OBS password (leave blank only when authentication is OFF)",30,191,540,22,10,true,Color.White));
             passwordBox=Input(30,215,520,true);if(prior!=null){try{passwordBox.Text=Program.Decode(prior.encryptedPassword);}catch{}}Controls.Add(passwordBox);
             Controls.Add(Program.Label("Password is encrypted for your Windows account. It is never uploaded to GitHub.",30,262,530,26,9,false,Program.Muted));
             Button cancel=Program.Button("Cancel",285,314,120,38,Program.Stroke,Color.White);cancel.Click+=delegate{DialogResult=DialogResult.Cancel;Close();};Controls.Add(cancel);
@@ -189,7 +189,7 @@ namespace BumbiTally
             {
                 MessageBox.Show("Use a valid OBS WebSocket URL, for example ws://127.0.0.1:4455", "Invalid URL");return;
             }
-            if (passwordBox.Text.Length==0) { MessageBox.Show("Enter the OBS WebSocket password. Authentication must be enabled in OBS.","Password needed");return; }
+            if (passwordBox.Text.Length==0 && MessageBox.Show("No OBS password is entered. This works only if OBS WebSocket authentication is disabled. Keeping authentication enabled is recommended. Continue?","Confirm OBS authentication setting",MessageBoxButtons.YesNo,MessageBoxIcon.Warning)!=DialogResult.Yes)return;
             Url=uri;Password=passwordBox.Text;DialogResult=DialogResult.OK;Close();
         }
     }

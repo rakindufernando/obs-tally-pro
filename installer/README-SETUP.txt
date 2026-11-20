@@ -3,12 +3,12 @@ OBS TALLY PRO | BUMBI Software Solutions
 
 INSTALL ON WINDOWS 10 OR WINDOWS 11 (64-bit)
 
-1. Open BUMBI-OBS-TALLY-PRO-Setup-v3.1.1.exe from the verified private distribution package.
+1. Open BUMBI-OBS-TALLY-PRO-Setup-v3.1.2.exe from the verified private distribution package.
 2. Follow the installer. A Start Menu shortcut is created, and an optional desktop shortcut.
 3. Open OBS Studio -> Tools -> WebSocket Server Settings.
    Enable server, set a strong authentication password. Default port 4455.
 4. Launch OBS TALLY PRO. The BUMBI Software Solutions startup logo will appear.
-5. On the first run, click OBS SETTINGS and enter ws://127.0.0.1:4455 plus your OBS password.
+5. On the first run, click OBS CONNECTION SETTINGS and enter ws://127.0.0.1:4455 plus your OBS password.
 6. Click REGISTER / MOVE PC. From the online director dashboard, generate a new 10-minute bridge code for your selected production. Paste the code.
 7. The Bridge starts. The OBS and cloud status boxes update as signals are received.
 8. The phone-based tally lights still use https://rakindufernando.github.io/obs-tally-pro/.
