@@ -101,7 +101,7 @@ namespace BumbiTally
         static string StatText(double v,string unit,int decimals=1){return v.ToString("F"+decimals,System.Globalization.CultureInfo.InvariantCulture)+unit;}
         public ModernBridgeWindow()
         {
-            Text="OBS TALLY PRO 3.1 | BUMBI Software Solutions";
+            Text="OBS TALLY PRO 3.1.2 | BUMBI Software Solutions";
             Width=1250;Height=815;MinimumSize=new Size(1060,700);StartPosition=FormStartPosition.CenterScreen;
             BackColor=BG;ForeColor=Color.White;DoubleBuffered=true;
             try{Icon=new Icon(Path.Combine(Program.AppFolder,"bumbi.ico"));}catch{}
@@ -234,7 +234,7 @@ namespace BumbiTally
             AddCaption(aboutPane,"BUMBI Software Solutions",18);
             var card=Card(24,72,936,360,aboutPane);
             var mark=BrandPicture(95,35,744,174);mark.BackColor=Color.White;card.Controls.Add(mark);
-            var name=L("OBS TALLY PRO 3.1",100,228,735,49,24,true,Color.White);name.TextAlign=ContentAlignment.MiddleCenter;card.Controls.Add(name);
+            var name=L("OBS TALLY PRO 3.1.2",100,228,735,49,24,true,Color.White);name.TextAlign=ContentAlignment.MiddleCenter;card.Controls.Add(name);
             var info=L("Made for reliable multi-camera broadcast productions",100,286,735,30,11,false,MUTED);info.TextAlign=ContentAlignment.MiddleCenter;card.Controls.Add(info);
             var help=B("OPEN ONLINE DASHBOARD",ACCENT,Color.Black,51);help.SetBounds(24,466,290,51);help.Click+=(s,e)=>Open("#/dashboard");aboutPane.Controls.Add(help);
             var github=B("VIEW PROJECT SOURCE",PANEL2,Color.White,51);github.SetBounds(328,466,275,51);github.Click+=(s,e)=>OpenExternal("https://github.com/rakindufernando/obs-tally-pro");aboutPane.Controls.Add(github);
@@ -262,13 +262,13 @@ namespace BumbiTally
         void InitializeBridge()
         {
             try{
-                tray=new NotifyIcon();tray.Icon=Icon;tray.Text="BUMBI OBS TALLY PRO 3.1";tray.Visible=true;
+                tray=new NotifyIcon();tray.Icon=Icon;tray.Text="BUMBI OBS TALLY PRO 3.1.2.2";tray.Visible=true;
                 var ctx=new ContextMenu();ctx.MenuItems.Add("Open control panel",(s,e)=>{Show();WindowState=FormWindowState.Normal;Activate();});
                 ctx.MenuItems.Add("Stop Bridge",(s,e)=>StopBridge());
                 ctx.MenuItems.Add("Stop all and Exit",(s,e)=>FullExit());tray.ContextMenu=ctx;
                 tray.DoubleClick+=(s,e)=>{Show();WindowState=FormWindowState.Normal;Activate();};
             }catch(Exception e){Log("Tray unavailable: "+e.Message);}
-            Log("BUMBI OBS TALLY PRO 3.1 ready. Closing the window stops the Bridge completely.");
+            Log("BUMBI OBS TALLY PRO 3.1.2.2 ready. Closing the window stops the Bridge completely.");
             if(!File.Exists(Program.Runner)||!File.Exists(Program.Script)){
                 MessageBox.Show("Bridge runtime missing. Please reinstall OBS TALLY PRO.","Repair required",MessageBoxButtons.OK,MessageBoxIcon.Error);return;
             }
