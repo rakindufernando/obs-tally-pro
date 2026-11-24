@@ -28,8 +28,11 @@ async function main(){
    sceneControlBusy=true;
    try{
      for(const command of await cloud.fetchCommands()){
-       try{await obs.switchScene(command.scene_name);await cloud.commandResult(command.id,true,'Scene switched');}
-       catch(e){await cloud.commandResult(command.id,false,e instanceof Error?e.message:'OBS scene switch failed');}
+       let success=false;let message='Scene switched';
+       try{await obs.switchScene(command.scene_name);success=true;}
+       catch(e){message=e instanceof Error?e.message:'OBS scene switch failed';}
+       try{await cloud.commandResult(command.id,success,message);}
+       catch(e){console.warn('OBS command acknowledgement unavailable; execution outcome may be uncertain',command.id,e instanceof Error?e.message:'unknown');}
      }
    }catch(e){console.warn('Director scene control unavailable',e instanceof Error?e.message:'unknown');}
    finally{sceneControlBusy=false;}
@@ -50,7 +53,7 @@ async function main(){
        mkdirSync(dirname(statusPath),{recursive:true});
        const tmp=statusPath+'.tmp';writeFileSync(tmp,JSON.stringify(status));renameSync(tmp,statusPath);
      }
-     if(t.obs_connected)await cloud.sendTelemetry(t);
+     if(t.obs_connected&&obs.getSnapshot().connected)await cloud.sendTelemetry(t);
    }catch(e){console.warn('OBS telemetry unavailable',e instanceof Error?e.message:'unknown');}
    finally{telemetryBusy=false;}
  };
