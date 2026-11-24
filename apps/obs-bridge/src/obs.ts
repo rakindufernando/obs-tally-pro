@@ -16,6 +16,7 @@ export class OBSConnector {
  private obs=new OBSWebSocket();
  private lastStreamSample:{bytes:number;at:number;duration:number}|null=null;
  private connected=false;
+ private connectionEpoch=0;
  private active=true;
  private reconnectAttempts=0;
  private pending=false;
@@ -65,7 +66,7 @@ export class OBSConnector {
  }
  async switchScene(name:string):Promise<void>{
    if(!this.connected)throw new Error('OBS disconnected');
-   if(!name||name.length>150||!this.snapshot.scenes[name])throw new Error('OBS scene not found');
+   if(!name||name.length>150||!Object.prototype.hasOwnProperty.call(this.snapshot.scenes,name))throw new Error('OBS scene not found');
    await this.obs.call('SetCurrentProgramScene',{sceneName:name});
    this.requestSync();
  }
@@ -73,7 +74,7 @@ export class OBSConnector {
  getSnapshot(){return this.snapshot;}
  private onDisconnected(){
    if(!this.connected)return;
-   this.connected=false;this.transitionFrom=null;this.lastProgram=null;this.structureDirty=true;this.treeCache.clear();
+   this.connectionEpoch++;this.connected=false;this.lastStreamSample=null;this.transitionFrom=null;this.lastProgram=null;this.structureDirty=true;this.treeCache.clear();
    this.snapshot={connected:false,studioMode:false,program:null,preview:null,scenes:{},sceneUuids:{},streaming:false,recording:false};
    this.onUpdate(this.snapshot);
    console.warn('OBS connection lost; all tally cameras are now untrusted');
@@ -83,7 +84,7 @@ export class OBSConnector {
      if(this.connected){await wait(1000);continue;}
      try{
        await this.obs.connect(this.url,this.password||undefined,{rpcVersion:1});
-       this.connected=true;this.reconnectAttempts=0;this.structureDirty=true;this.treeCache.clear();
+       this.connectionEpoch++;this.connected=true;this.reconnectAttempts=0;this.structureDirty=true;this.treeCache.clear();
        console.log('OBS WebSocket connected');
        await this.sync();
      }catch(e){
@@ -188,6 +189,7 @@ export class OBSConnector {
    if(!this.connected)return;
    if(this.processing){this.pending=true;return;}
    this.processing=true;
+   const epoch=this.connectionEpoch;
    try{
      do{
        this.pending=false;
@@ -196,7 +198,7 @@ export class OBSConnector {
        ]);
        const studioMode=Boolean(mode.studioModeEnabled);
        const preview=studioMode?await this.obs.call('GetCurrentPreviewScene'):null;
-       const scenes:Record<string,TreeItem[]>={},sceneUuids:Record<string,string>={};
+       const scenes:Record<string,TreeItem[]>=Object.create(null),sceneUuids:Record<string,string>=Object.create(null);
        // `list.scenes` is typed as generic JSON by obs-websocket-js.
        // Ignore malformed scene entries instead of indexing with non-string values.
        const sceneRows:unknown[]=Array.isArray(list.scenes)?list.scenes:[];
@@ -209,16 +211,18 @@ export class OBSConnector {
          catch{scenes[sceneName]=[];}
        }
        const [streaming,recording]=await Promise.all([this.safeStatus('GetStreamStatus','outputActive'),this.safeStatus('GetRecordStatus','outputActive')]);
+       if(!this.active||!this.connected||epoch!==this.connectionEpoch)return;
        this.snapshot={connected:true,studioMode,program:readSceneName(program,'currentProgramSceneName'),preview:studioMode?readSceneName(preview,'currentPreviewSceneName'):null,
          sceneUuids,scenes,transitionFrom:this.transitionFrom,streaming,recording};
        this.lastProgram=this.snapshot.program;
        this.structureDirty=false;
        this.onUpdate(this.snapshot);
-     }while(this.pending&&this.connected);
+     }while(this.pending&&this.connected&&epoch===this.connectionEpoch);
    }catch(e){
      console.warn('OBS synchronization failed, clearing trusted state',e instanceof Error?e.message:'unknown');
+     if(epoch!==this.connectionEpoch)return;
      this.onDisconnected();
      try{await this.obs.disconnect();}catch{/* disconnected */}
-   }finally{this.processing=false;}
+   }finally{this.processing=false;if(this.pending&&this.active&&this.connected)this.requestSync();}
  }
 }

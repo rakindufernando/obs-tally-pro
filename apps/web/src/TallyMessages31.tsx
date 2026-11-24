@@ -14,11 +14,13 @@ export function TallyMessages31({client,productionId,cameraId,online}:Props){
  const [busy,setBusy]=useState(false);
  const [duration,setDuration]=useState(Number(localStorage.getItem('bumbi-message-duration-31')||15));
  const active=useRef(false);
+ const generation=useRef(0);
  const ignored=useRef(new Set<string>());
  const announced=useRef(new Set<string>());
  const loading=useRef(false);
  const sync=useCallback(async()=>{
-  if(loading.current)return;
+  if(loading.current||!online)return;
+  const epoch=generation.current;
   loading.current=true;
   try{
    const [items,user]=await Promise.all([
@@ -37,27 +39,27 @@ export function TallyMessages31({client,productionId,cameraId,online}:Props){
     if(result.error)throw result.error;
     ack=(result.data||[]).map(v=>v.message_id);
    }
-   if(!active.current)return;
+   if(!active.current||epoch!==generation.current)return;
    const known=new Set(ack);
    const currentIds=new Set(rows.map(m=>m.id));
    for(const id of ignored.current)if(!currentIds.has(id))ignored.current.delete(id);
    setMessages(rows);setReadIds(known);
    const pending=rows.find(m=>!known.has(m.id)&&!ignored.current.has(m.id));
-   setCurrent(online?pending||null:null);
+   setCurrent(prev=>prev?.id===pending?.id?prev:pending||null);
    if(pending&&!announced.current.has(pending.id)){
     announced.current.add(pending.id);
     if(pending.quick_command&&online)try{navigator.vibrate?.([100,60,100]);}catch{/* Browser support varies */}
    }
    setError('');
-  }catch(e){if(active.current)setError(e instanceof Error?e.message:String(e));}
+  }catch(e){if(active.current&&epoch===generation.current)setError(e instanceof Error?e.message:String(e));}
   finally{loading.current=false;}
  },[client,productionId,cameraId,online]);
  useEffect(()=>{
-  active.current=true;ignored.current.clear();announced.current.clear();
+  active.current=true;const epoch=++generation.current;ignored.current.clear();announced.current.clear();
   let channel:ReturnType<typeof client.channel>|null=null;
   void sync();
   void client.auth.getSession().then(({data})=>{
-   if(!active.current||!data.session)return;
+   if(!active.current||epoch!==generation.current||!data.session)return;
    client.realtime.setAuth(data.session.access_token);
    channel=client.channel(`ops:${productionId}`,{config:{private:true}})
     .on('broadcast',{event:'message'},()=>void sync())
@@ -67,11 +69,11 @@ export function TallyMessages31({client,productionId,cameraId,online}:Props){
   const timer=setInterval(()=>void sync(),3000);
   const resume=()=>{if(document.visibilityState==='visible')void sync();};
   window.addEventListener('online',resume);document.addEventListener('visibilitychange',resume);
-  return()=>{active.current=false;clearInterval(timer);window.removeEventListener('online',resume);
+  return()=>{active.current=false;generation.current++;clearInterval(timer);window.removeEventListener('online',resume);
    document.removeEventListener('visibilitychange',resume);if(channel)void client.removeChannel(channel);};
  },[client,productionId,cameraId,sync]);
  useEffect(()=>{
-  if(!online)setCurrent(null);
+  if(!online){setCurrent(null);setMessages([]);setReadIds(new Set());setExpanded(false);}
  },[online]);
  useEffect(()=>{
   if(!current)return;
@@ -112,7 +114,7 @@ export function TallyMessages31({client,productionId,cameraId,online}:Props){
    Director messages {unread>0?<strong>{unread} unread</strong>:<span>{online?'Up to date':'OBS offline'}</span>}
   </button>
   {online&&unread>0&&<button className="tally-message31-ack-all" disabled={busy} onClick={()=>void acknowledgeAll()}>Acknowledge all</button>}</div>
-  {expanded&&<div className="tally-message31-history">
+  {online&&expanded&&<div className="tally-message31-history">
    <div className="tally-message31-heading"><strong>Recent instructions</strong><button onClick={()=>setExpanded(false)}>Close</button></div>
    <label>Banner duration <select value={duration} onChange={e=>{setDuration(Number(e.target.value));localStorage.setItem('bumbi-message-duration-31',e.target.value);}}>
     <option value={8}>8 seconds</option><option value={15}>15 seconds</option><option value={30}>30 seconds</option><option value={60}>60 seconds</option></select></label>

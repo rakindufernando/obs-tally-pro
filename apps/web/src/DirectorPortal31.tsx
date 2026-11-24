@@ -74,9 +74,9 @@ export function DirectorPortal31(){
  useEffect(()=>{if(!userId)return;
   let active=true;let channel:ReturnType<typeof directorClient31.channel>|null=null;
   void directorClient31.auth.getSession().then(({data})=>{
-   if(!active||!data.session)return;
+   if(!active||!data.session||!productionId)return;
    directorClient31.realtime.setAuth(data.session.access_token);
-   channel=directorClient31.channel(`director-sync31:${productionId||'none'}`)
+   channel=directorClient31.channel(`production:${productionId}`,{config:{private:true}})
     .on('broadcast',{event:'tally'},()=>{void refresh();})
     .on('postgres_changes',{event:'*',schema:'public',table:'cameras'},()=>{void refresh();})
     .on('postgres_changes',{event:'*',schema:'public',table:'camera_mappings'},()=>{void refresh();})
